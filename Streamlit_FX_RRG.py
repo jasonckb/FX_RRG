@@ -94,7 +94,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             
             fig.add_trace(go.Scatter(
                 x=x_values, y=y_values, mode='lines+markers', name=chart_label,
-                line=dict(color=color, width=2), marker=dict(size=6, symbol='circle'),
+                line=dict(color=color, width=2), marker=dict(size=5, symbol='circle'),
                 showlegend=False
             ))
             
@@ -102,9 +102,9 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             
             fig.add_trace(go.Scatter(
                 x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
-                name=f"{pair} (latest)", marker=dict(color=color, size=12, symbol='circle'),
+                name=f"{pair} (latest)", marker=dict(color=color, size=8, symbol='circle'),
                 text=[chart_label], textposition=text_position, showlegend=False,
-                textfont=dict(color='black', size=12, family='Arial Black')
+                textfont=dict(color='black', size=10, family='Arial Black')
             ))
 
     fig.update_layout(
