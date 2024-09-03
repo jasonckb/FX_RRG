@@ -140,9 +140,13 @@ def get_hourly_data(ticker):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=30)
     data = yf.download(ticker, start=start_date, end=end_date, interval="1h")
+    
+    # Remove rows with NaN values (non-trading hours)
+    data = data.dropna()
+    
     return data
 
-def create_candlestick_chart(data, ticker):
+def create_candlestick_chart(data, ticker, trigger_level=None):
     fig = go.Figure(data=[go.Candlestick(x=data.index,
                     open=data['Open'],
                     high=data['High'],
@@ -153,8 +157,29 @@ def create_candlestick_chart(data, ticker):
         title=f"{ticker} - Hourly Candlestick Chart (Last 30 Days)",
         xaxis_title="Date",
         yaxis_title="Price",
-        height=500
+        height=700,
+        xaxis_rangeslider_visible=False,  # Remove the range slider
     )
+    
+    # Add trigger level line if provided
+    if trigger_level is not None:
+        fig.add_shape(
+            type="line",
+            x0=data.index[0],
+            y0=trigger_level,
+            x1=data.index[-1],
+            y1=trigger_level,
+            line=dict(color="blue", width=2, dash="dash"),
+        )
+        fig.add_annotation(
+            x=data.index[-1],
+            y=trigger_level,
+            text=f"Trigger: {trigger_level}",
+            showarrow=False,
+            yshift=10,
+            xshift=10,
+            font=dict(color="blue"),
+        )
     
     return fig
 
@@ -175,6 +200,9 @@ for i, pair in enumerate(fx_pairs):
     if columns[i % 3].button(fx_names.get(pair, pair)):
         st.session_state.selected_pair = pair
 
+# Trigger Level Input
+trigger_level = st.sidebar.text_input("Trigger Level Input", "")
+
 # Main content area
 col_daily, col_weekly = st.columns(2)
 
@@ -189,7 +217,16 @@ with col_weekly:
 # Candlestick chart
 if 'selected_pair' in st.session_state:
     hourly_data = get_hourly_data(st.session_state.selected_pair)
-    fig_candlestick = create_candlestick_chart(hourly_data, st.session_state.selected_pair)
+    
+    # Convert trigger_level to float if it's not empty
+    trigger_level_float = None
+    if trigger_level:
+        try:
+            trigger_level_float = float(trigger_level)
+        except ValueError:
+            st.warning("Invalid trigger level. Please enter a valid number.")
+    
+    fig_candlestick = create_candlestick_chart(hourly_data, st.session_state.selected_pair, trigger_level_float)
     st.plotly_chart(fig_candlestick, use_container_width=True)
 
 # Show raw data if checkbox is selected
@@ -200,4 +237,5 @@ if st.checkbox("Show raw data"):
     st.write(fx_pairs)
     st.write("Benchmark:")
     st.write(benchmark)
+
 
