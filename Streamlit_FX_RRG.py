@@ -149,10 +149,22 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
 def get_hourly_data(ticker):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=20)
-    data = yf.download(ticker, start=start_date, end=end_date, interval="1h")
+    
+    # Map the original ticker to its USD-based version for CAD, JPY, CNY, CHF
+    usd_based_tickers = {
+        "CADUSD=X": "USDCAD=X",
+        "JPYUSD=X": "USDJPY=X",
+        "CNYUSD=X": "USDCNY=X",
+        "CHFUSD=X": "USDCHF=X"
+    }
+    
+    # Use the USD-based ticker if it's one of the special cases, otherwise use the original ticker
+    download_ticker = usd_based_tickers.get(ticker, ticker)
+    
+    data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
     
     if data.empty:
-        st.warning(f"No data available for {ticker}")
+        st.warning(f"No data available for {download_ticker}")
         return pd.DataFrame()
 
     # Ensure the index is DatetimeIndex
@@ -166,7 +178,7 @@ def get_hourly_data(ticker):
     data = data[data.index.dayofweek < 5]
     
     if data.empty:
-        st.warning(f"No valid data available for {ticker} after removing weekends and NaN values")
+        st.warning(f"No valid data available for {download_ticker} after removing weekends and NaN values")
         return pd.DataFrame()
     
     # Reset index to create a continuous series
@@ -181,6 +193,15 @@ def get_hourly_data(ticker):
     return data
 
 def create_candlestick_chart(data, ticker, trigger_level=None):
+    # Map the original ticker to its USD-based version for display
+    usd_based_tickers = {
+        "CADUSD=X": "USDCAD=X",
+        "JPYUSD=X": "USDJPY=X",
+        "CNYUSD=X": "USDCNY=X",
+        "CHFUSD=X": "USDCHF=X"
+    }
+    display_ticker = usd_based_tickers.get(ticker, ticker)
+    
     fig = go.Figure(data=[go.Candlestick(x=data.index,
                     open=data['Open'],
                     high=data['High'],
@@ -188,7 +209,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
                     close=data['Close'])])
     
     fig.update_layout(
-        title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
+        title=f"{display_ticker} - Hourly Candlestick Chart (Last 20 Days)",
         xaxis_title="Date",
         yaxis_title="Price",
         height=700,
@@ -221,6 +242,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
         )
     
     return fig
+
 
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
@@ -273,31 +295,32 @@ with col_hourly_rrg:
     st.plotly_chart(fig_hourly, use_container_width=True)
 
 with col_candlestick:
-    if 'selected_pair' in st.session_state:
-        pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
+    ifcandlestick chart is created:
+if 'selected_pair' in st.session_state:
+    pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
+    
+    if not pair_hourly_data.empty:
+        # Convert trigger_level to float if it's not empty
+        trigger_level_float = None
+        if st.session_state.trigger_level:
+            try:
+                trigger_level_float = float(st.session_state.trigger_level)
+            except ValueError:
+                st.warning("Invalid trigger level. Please enter a valid number.")
         
-        if not pair_hourly_data.empty:
-            # Convert trigger_level to float if it's not empty
-            trigger_level_float = None
-            if st.session_state.trigger_level:
-                try:
-                    trigger_level_float = float(st.session_state.trigger_level)
-                except ValueError:
-                    st.warning("Invalid trigger level. Please enter a valid number.")
-            
-            fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
-            
-            # Reset button for candlestick chart
-            if st.button("Reset Candlestick Chart"):
-                del st.session_state.selected_pair
-                st.session_state.trigger_level = ""
-                st.rerun()
-            
-            st.plotly_chart(fig_candlestick, use_container_width=True)
-        else:
-            st.write(f"No valid data available for {st.session_state.selected_pair}")
+        fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
+        
+        # Reset button for candlestick chart
+        if st.button("Reset Candlestick Chart"):
+            del st.session_state.selected_pair
+            st.session_state.trigger_level = ""
+            st.rerun()
+        
+        st.plotly_chart(fig_candlestick, use_container_width=True)
     else:
-        st.write("Select an FX pair to view the candlestick chart.")
+        st.write(f"No valid data available for {st.session_state.selected_pair}")
+else:
+    st.write("Select an FX pair to view the candlestick chart.")
 
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
