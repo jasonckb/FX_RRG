@@ -135,6 +135,17 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
 
     return fig
 
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
+
+st.set_page_config(layout="wide", page_title="FX Relative Rotation Graph (RRG) Dashboard")
+
+# ... [Previous functions remain the same] ...
+
 @st.cache_data
 def get_hourly_data(ticker):
     end_date = datetime.now()
@@ -143,6 +154,9 @@ def get_hourly_data(ticker):
     
     # Remove rows with NaN values (non-trading hours)
     data = data.dropna()
+    
+    # Remove weekends
+    data = data[data.index.dayofweek < 5]
     
     return data
 
@@ -203,6 +217,20 @@ for i, pair in enumerate(fx_pairs):
 # Trigger Level Input
 trigger_level = st.sidebar.text_input("Trigger Level Input", "")
 
+# Refresh and Reset buttons
+refresh_button = st.sidebar.button("Refresh Data")
+reset_button = st.sidebar.button("Reset")
+
+if refresh_button:
+    st.cache_data.clear()
+    st.experimental_rerun()
+
+if reset_button:
+    if 'selected_pair' in st.session_state:
+        del st.session_state.selected_pair
+    trigger_level = ""
+    st.experimental_rerun()
+
 # Main content area
 col_daily, col_weekly = st.columns(2)
 
@@ -237,5 +265,6 @@ if st.checkbox("Show raw data"):
     st.write(fx_pairs)
     st.write("Benchmark:")
     st.write(benchmark)
+
 
 
