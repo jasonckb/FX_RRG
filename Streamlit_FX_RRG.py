@@ -138,7 +138,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
 @st.cache_data
 def get_hourly_data(ticker):
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=30)
+    start_date = end_date - timedelta(days=20)  # Changed to 20 days
     data = yf.download(ticker, start=start_date, end=end_date, interval="1h")
     
     # Remove rows with NaN values (non-trading hours)
@@ -166,7 +166,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
                     close=data['Close'])])
     
     fig.update_layout(
-        title=f"{ticker} - Hourly Candlestick Chart (Last 30 Days)",
+        title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",  # Updated title
         xaxis_title="Date",
         yaxis_title="Price",
         height=700,
@@ -209,12 +209,12 @@ st.sidebar.header("FX Pairs")
 # Get FX data
 data, benchmark, fx_pairs, fx_names = get_fx_data("Daily")  # We'll use daily data for both charts
 
-# Create 3 columns for FX pair buttons
-col1, col2, col3 = st.sidebar.columns(3)
-columns = [col1, col2, col3]
+# Create 2 columns for FX pair buttons
+col1, col2 = st.sidebar.columns(2)
+columns = [col1, col2]
 
 for i, pair in enumerate(fx_pairs):
-    if columns[i % 3].button(fx_names.get(pair, pair)):
+    if columns[i % 2].button(fx_names.get(pair, pair)):
         st.session_state.selected_pair = pair
 
 # Trigger Level Input
