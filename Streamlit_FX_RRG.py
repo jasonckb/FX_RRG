@@ -274,7 +274,7 @@ col_hourly_rrg, col_candlestick = st.columns(2)
 
 #hourly chart creation:
 with col_hourly_rrg:
-    fig_hourly = create_rrg_chart(hourly_data, benchmark, fx_pairs, fx_names, "Hourly", 8)  # Always show 8 hours tail
+    fig_hourly = create_rrg_chart(hourly_data, benchmark, fx_pairs, fx_names, "Hourly", 5)  
     st.plotly_chart(fig_hourly, use_container_width=True)
 
 with col_candlestick:
