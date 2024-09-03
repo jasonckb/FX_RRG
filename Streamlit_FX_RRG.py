@@ -32,12 +32,15 @@ def get_fx_data(timeframe):
 
     benchmark = "HKDUSD=X"
     fx_pairs = ["GBPUSD=X", "EURUSD=X", "AUDUSD=X", "NZDUSD=X", "CADUSD=X", "CHFUSD=X", "JPYUSD=X", "CNYUSD=X", 
-                "EURGBP=X", "AUDNZD=X", "AUDCAD=X", "NZDCAD=X", "DX-Y.NYB"]
-    
+                "EURGBP=X", "AUDNZD=X", "AUDCAD=X", "NZDCAD=X", "DX-Y.NYB", "GBPAUD=X", "GBPNZD=X", "GBPCAD=X",
+                "EURAUD=X", "EURNZD=X", "EURCAD=X", "EURJPY=X", "GBPJPY=X", "AUDJPY=X", "NZDJPY=X", "CADJPY=X"]
     fx_names = {
         "GBPUSD=X": "GBP", "EURUSD=X": "EUR", "AUDUSD=X": "AUD", "NZDUSD=X": "NZD",
         "CADUSD=X": "CAD", "JPYUSD=X": "JPY", "EURGBP=X": "EURGBP", "AUDNZD=X": "AUDNZD",
-        "AUDCAD=X": "AUDCAD", "NZDCAD=X": "NZDCAD", "DX-Y.NYB": "DXY", "CHFUSD=X": "CHF", "CNYUSD=X": "CNY"
+        "AUDCAD=X": "AUDCAD", "NZDCAD=X": "NZDCAD", "DX-Y.NYB": "DXY", "CHFUSD=X": "CHF", "CNYUSD=X": "CNY",
+        "GBPAUD=X": "GBPAUD", "GBPNZD=X": "GBPNZD", "GBPCAD=X": "GBPCAD", "EURAUD=X": "EURAUD",
+        "EURNZD=X": "EURNZD", "EURCAD=X": "EURCAD", "EURJPY=X": "EURJPY", "GBPJPY=X": "GBPJPY",
+        "AUDJPY=X": "AUDJPY", "NZDJPY=X": "NZDJPY", "CADJPY=X": "CADJPY"
     }
 
     tickers_to_download = [benchmark] + fx_pairs
@@ -102,7 +105,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             
             fig.add_trace(go.Scatter(
                 x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
-                name=f"{pair} (latest)", marker=dict(color=color, size=8, symbol='circle'),
+                name=f"{pair} (latest)", marker=dict(color=color, size=9, symbol='circle'),
                 text=[chart_label], textposition=text_position, showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
             ))
@@ -138,7 +141,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
 @st.cache_data
 def get_hourly_data(ticker):
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=20)  # Changed to 20 days
+    start_date = end_date - timedelta(days=20)
     data = yf.download(ticker, start=start_date, end=end_date, interval="1h")
     
     # Remove rows with NaN values (non-trading hours)
@@ -166,11 +169,11 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
                     close=data['Close'])])
     
     fig.update_layout(
-        title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",  # Updated title
+        title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
         xaxis_title="Date",
         yaxis_title="Price",
         height=700,
-        xaxis_rangeslider_visible=False,  # Remove the range slider
+        xaxis_rangeslider_visible=False,
         xaxis=dict(
             tickformat='%Y-%m-%d %H:%M',
             tickmode='auto',
@@ -207,7 +210,7 @@ st.title("FX Relative Rotation Graph (RRG) Dashboard")
 st.sidebar.header("FX Pairs")
 
 # Get FX data
-data, benchmark, fx_pairs, fx_names = get_fx_data("Daily")  # We'll use daily data for both charts
+data, benchmark, fx_pairs, fx_names = get_fx_data("Daily")
 
 # Create 2 columns for FX pair buttons
 col1, col2 = st.sidebar.columns(2)
@@ -266,11 +269,6 @@ if 'selected_pair' in st.session_state:
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
     st.write("Raw data:")
-    st.write(data)
-    st.write("FX Pairs:")
-    st.write(fx_pairs)
-    st.write("Benchmark:")
-    st.write(benchmark)
 
 
 
