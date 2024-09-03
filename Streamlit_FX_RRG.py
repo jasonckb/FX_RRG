@@ -89,27 +89,37 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         else: return "Leading"
 
     for pair in fx_pairs:
-        x_values = rrg_data[f"{pair}_RS-Ratio"].iloc[-tail_length:].dropna()
-        y_values = rrg_data[f"{pair}_RS-Momentum"].iloc[-tail_length:].dropna()
+        x_values = rrg_data[f"{pair}_RS-Ratio"].dropna()
+        y_values = rrg_data[f"{pair}_RS-Momentum"].dropna()
+        
         if len(x_values) > 0 and len(y_values) > 0:
+            # Always show the last 8 points for hourly chart
+            if timeframe == "Hourly":
+                x_values = x_values.iloc[-8:]
+                y_values = y_values.iloc[-8:]
+            else:
+                x_values = x_values.iloc[-tail_length:]
+                y_values = y_values.iloc[-tail_length:]
+            
             current_quadrant = get_quadrant(x_values.iloc[-1], y_values.iloc[-1])
             color = curve_colors[current_quadrant]
             
             chart_label = fx_names.get(pair, pair)
             
+            # Add line and markers for the tail
             fig.add_trace(go.Scatter(
                 x=x_values, y=y_values, mode='lines+markers', name=chart_label,
                 line=dict(color=color, width=2), marker=dict(size=5, symbol='circle'),
                 showlegend=False
             ))
             
-            text_position = "top center" if y_values.iloc[-1] > y_values.iloc[-2] else "bottom center"
-            
+            # Add a larger marker for the latest point (head)
             fig.add_trace(go.Scatter(
                 x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
                 name=f"{pair} (latest)", marker=dict(color=color, size=9, symbol='circle'),
-                text=[chart_label], textposition=text_position, showlegend=False,
+                text=[chart_label], textposition="top center", showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
+              
             ))
 
     fig.update_layout(
@@ -262,8 +272,9 @@ with col_weekly:
 # New row for Hourly RRG and Candlestick chart
 col_hourly_rrg, col_candlestick = st.columns(2)
 
+hourly chart creation:
 with col_hourly_rrg:
-    fig_hourly = create_rrg_chart(hourly_data, benchmark, fx_pairs, fx_names, "Hourly",8)  # 24 hours tail
+    fig_hourly = create_rrg_chart(hourly_data, benchmark, fx_pairs, fx_names, "Hourly", 8)  # Always show 8 hours tail
     st.plotly_chart(fig_hourly, use_container_width=True)
 
 with col_candlestick:
