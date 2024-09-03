@@ -32,15 +32,13 @@ def get_fx_data(timeframe):
 
     benchmark = "HKDUSD=X"
     fx_pairs = ["GBPUSD=X", "EURUSD=X", "AUDUSD=X", "NZDUSD=X", "CADUSD=X", "CHFUSD=X", "JPYUSD=X", "CNYUSD=X", 
-                "EURGBP=X", "AUDNZD=X", "AUDCAD=X", "NZDCAD=X", "DX-Y.NYB", "GBPAUD=X", "GBPNZD=X", "GBPCAD=X",
-                "EURAUD=X", "EURNZD=X", "EURCAD=X", "EURJPY=X", "GBPJPY=X", "AUDJPY=X", "NZDJPY=X", "CADJPY=X"]
+                "EURGBP=X", "AUDNZD=X", "AUDCAD=X", "NZDCAD=X", "DX-Y.NYB", "GBPAUD=X", "GBPNZD=X", "GBPCAD=X"
+                ]
     fx_names = {
         "GBPUSD=X": "GBP", "EURUSD=X": "EUR", "AUDUSD=X": "AUD", "NZDUSD=X": "NZD",
         "CADUSD=X": "CAD", "JPYUSD=X": "JPY", "EURGBP=X": "EURGBP", "AUDNZD=X": "AUDNZD",
         "AUDCAD=X": "AUDCAD", "NZDCAD=X": "NZDCAD", "DX-Y.NYB": "DXY", "CHFUSD=X": "CHF", "CNYUSD=X": "CNY",
-        "GBPAUD=X": "GBPAUD", "GBPNZD=X": "GBPNZD", "GBPCAD=X": "GBPCAD", "EURAUD=X": "EURAUD",
-        "EURNZD=X": "EURNZD", "EURCAD=X": "EURCAD", "EURJPY=X": "EURJPY", "GBPJPY=X": "GBPJPY",
-        "AUDJPY=X": "AUDJPY", "NZDJPY=X": "NZDJPY", "CADJPY=X": "CADJPY"
+        "GBPAUD=X": "GBPAUD", "GBPNZD=X": "GBPNZD", "GBPCAD=X": "GBPCAD"
     }
 
     tickers_to_download = [benchmark] + fx_pairs
