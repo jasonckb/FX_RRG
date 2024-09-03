@@ -135,17 +135,6 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
 
     return fig
 
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
-
-st.set_page_config(layout="wide", page_title="FX Relative Rotation Graph (RRG) Dashboard")
-
-# ... [Previous functions remain the same] ...
-
 @st.cache_data
 def get_hourly_data(ticker):
     end_date = datetime.now()
