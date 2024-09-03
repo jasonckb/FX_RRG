@@ -137,10 +137,10 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     return fig
 
 @st.cache_data
-def get_hourly_data(ticker):
+def get_4hour_data(ticker):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=20)
-    data = yf.download(ticker, start=start_date, end=end_date, interval="1h")
+    data = yf.download(ticker, start=start_date, end=end_date, interval="4h")
     
     # Remove rows with NaN values (non-trading hours)
     data = data.dropna()
@@ -152,7 +152,7 @@ def get_hourly_data(ticker):
     data = data.reset_index()
     
     # Create a continuous datetime index
-    data['continuous_datetime'] = pd.date_range(start=data['Datetime'].min(), periods=len(data), freq='H')
+    data['continuous_datetime'] = pd.date_range(start=data['Datetime'].min(), periods=len(data), freq='4H')
     
     # Set the continuous datetime as the index
     data.set_index('continuous_datetime', inplace=True)
@@ -167,7 +167,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
                     close=data['Close'])])
     
     fig.update_layout(
-        title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
+        title=f"{ticker} - 4-Hour Candlestick Chart (Last 20 Days)",
         xaxis_title="Date",
         yaxis_title="Price",
         height=700,
@@ -200,6 +200,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
         )
     
     return fig
+
 
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
