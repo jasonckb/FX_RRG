@@ -107,10 +107,16 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 showlegend=False
             ))
             
+            # Determine text position based on momentum comparison
+            if len(y_values) > 1:
+                text_position = "top center" if y_values.iloc[-1] > y_values.iloc[-2] else "bottom center"
+            else:
+                text_position = "top center"  # Default to top if there's only one point
+            
             fig.add_trace(go.Scatter(
                 x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
                 name=f"{pair} (latest)", marker=dict(color=color, size=9, symbol='circle'),
-                text=[chart_label], textposition="top center", showlegend=False,
+                text=[chart_label], textposition=text_position, showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
             ))
 
