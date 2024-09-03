@@ -37,9 +37,9 @@ def get_fx_data(timeframe):
                 "EURGBP=X", "AUDNZD=X", "AUDCAD=X", "NZDCAD=X", "DX-Y.NYB", "AUDJPY=X"]
     fx_names = {
         "GBPUSD=X": "GBP", "EURUSD=X": "EUR", "AUDUSD=X": "AUD", "NZDUSD=X": "NZD",
-        "CADUSD=X": "CAD", "JPYUSD=X": "JPY", "EURGBP=X": "EURGBP", "AUDNZD=X": "AUDNZD",
-        "AUDCAD=X": "AUDCAD", "NZDCAD=X": "NZDCAD", "DX-Y.NYB": "DXY", "CHFUSD=X": "CHF", "CNYUSD=X": "CNY",
-        "AUDJPY=X": "AUDJPY"
+        "CADUSD=X": "CAD", "JPYUSD=X": "JPY", "CHFUSD=X": "CHF", "CNYUSD=X": "CNY",
+        "EURGBP=X": "EURGBP", "AUDNZD=X": "AUDNZD", "AUDCAD=X": "AUDCAD", "NZDCAD=X": "NZDCAD", 
+        "DX-Y.NYB": "DXY", "AUDJPY=X": "AUDJPY"
     }
 
     tickers_to_download = [benchmark] + fx_pairs
@@ -62,7 +62,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
         rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
-    boundary_data = rrg_data.iloc[-6:]
+    boundary_data = rrg_data.iloc[-10:]
     
     padding = 0.1
     min_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
@@ -93,7 +93,6 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         y_values = rrg_data[f"{pair}_RS-Momentum"].dropna()
         
         if len(x_values) > 0 and len(y_values) > 0:
-            # Always show the last 5 points for hourly chart
             x_values = x_values.iloc[-tail_length:]
             y_values = y_values.iloc[-tail_length:]
             
@@ -102,14 +101,12 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             
             chart_label = fx_names.get(pair, pair)
             
-            # Add line and markers for the tail
             fig.add_trace(go.Scatter(
                 x=x_values, y=y_values, mode='lines+markers', name=chart_label,
                 line=dict(color=color, width=2), marker=dict(size=5, symbol='circle'),
                 showlegend=False
             ))
             
-            # Add a larger marker for the latest point (head)
             fig.add_trace(go.Scatter(
                 x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
                 name=f"{pair} (latest)", marker=dict(color=color, size=9, symbol='circle'),
@@ -167,33 +164,23 @@ def get_hourly_data(ticker):
         st.warning(f"No data available for {download_ticker}")
         return pd.DataFrame()
 
-    # Ensure the index is DatetimeIndex
     if not isinstance(data.index, pd.DatetimeIndex):
         data.index = pd.to_datetime(data.index)
     
-    # Remove rows with NaN values (non-trading hours)
     data = data.dropna()
-    
-    # Remove weekends
     data = data[data.index.dayofweek < 5]
     
     if data.empty:
         st.warning(f"No valid data available for {download_ticker} after removing weekends and NaN values")
         return pd.DataFrame()
     
-    # Reset index to create a continuous series
     data = data.reset_index()
-    
-    # Create a continuous datetime index
     data['continuous_datetime'] = pd.date_range(start=data['Datetime'].min(), periods=len(data), freq='H')
-    
-    # Set the continuous datetime as the index
     data.set_index('continuous_datetime', inplace=True)
     
     return data
 
 def create_candlestick_chart(data, ticker, trigger_level=None):
-    # Map the original ticker to its USD-based version for display
     usd_based_tickers = {
         "CADUSD=X": "USDCAD=X",
         "JPYUSD=X": "USDJPY=X",
@@ -221,7 +208,6 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
         )
     )
     
-    # Add trigger level line if provided
     if trigger_level is not None:
         fig.add_shape(
             type="line",
@@ -242,7 +228,6 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
         )
     
     return fig
-
 
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
@@ -289,38 +274,36 @@ with col_weekly:
 # New row for Hourly RRG and Candlestick chart
 col_hourly_rrg, col_candlestick = st.columns(2)
 
-#hourly chart creation:
 with col_hourly_rrg:
-    fig_hourly = create_rrg_chart(hourly_data, benchmark, fx_pairs, fx_names, "Hourly",5)  
+    fig_hourly = create_rrg_chart(hourly_data, benchmark, fx_pairs, fx_names, "Hourly", 5)
     st.plotly_chart(fig_hourly, use_container_width=True)
 
 with col_candlestick:
-    ifcandlestick chart is created:
-if 'selected_pair' in st.session_state:
-    pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
-    
-    if not pair_hourly_data.empty:
-        # Convert trigger_level to float if it's not empty
-        trigger_level_float = None
-        if st.session_state.trigger_level:
-            try:
-                trigger_level_float = float(st.session_state.trigger_level)
-            except ValueError:
-                st.warning("Invalid trigger level. Please enter a valid number.")
+    if 'selected_pair' in st.session_state:
+        pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
-        fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
-        
-        # Reset button for candlestick chart
-        if st.button("Reset Candlestick Chart"):
-            del st.session_state.selected_pair
-            st.session_state.trigger_level = ""
-            st.rerun()
-        
-        st.plotly_chart(fig_candlestick, use_container_width=True)
+        if not pair_hourly_data.empty:
+            # Convert trigger_level to float if it's not empty
+            trigger_level_float = None
+            if st.session_state.trigger_level:
+                try:
+                    trigger_level_float = float(st.session_state.trigger_level)
+                except ValueError:
+                    st.warning("Invalid trigger level. Please enter a valid number.")
+            
+            fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
+            
+            # Reset button for candlestick chart
+            if st.button("Reset Candlestick Chart"):
+                del st.session_state.selected_pair
+                st.session_state.trigger_level = ""
+                st.rerun()
+            
+            st.plotly_chart(fig_candlestick, use_container_width=True)
+        else:
+            st.write(f"No valid data available for {st.session_state.selected_pair}")
     else:
-        st.write(f"No valid data available for {st.session_state.selected_pair}")
-else:
-    st.write("Select an FX pair to view the candlestick chart.")
+        st.write("Select an FX pair to view the candlestick chart.")
 
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
@@ -332,6 +315,7 @@ if st.checkbox("Show raw data"):
     st.write(fx_pairs)
     st.write("Benchmark:")
     st.write(benchmark)
+
 
 
 
