@@ -5,7 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-st.set_page_config(layout="wide", page_title="FX Relative Rotation Graph (RRG)")
+st.set_page_config(layout="wide", page_title="FX Relative Rotation Graph (RRG) Dashboard")
 
 @st.cache_data
 def ma(data, period):
@@ -112,8 +112,8 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         title=f"FX Relative Rotation Graph (RRG) ({timeframe})",
         xaxis_title="RS-Ratio",
         yaxis_title="RS-Momentum",
-        width=1200,
-        height=800,
+        width=600,
+        height=500,
         xaxis=dict(range=[min_x, max_x], title_font=dict(size=14)),
         yaxis=dict(range=[min_y, max_y], title_font=dict(size=14)),
         plot_bgcolor='white',
@@ -128,7 +128,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         ]
     )
 
-    label_font = dict(size=32, color='black', family='Arial Black')
+    label_font = dict(size=20, color='black', family='Arial Black')
     fig.add_annotation(x=min_x, y=min_y, text="落後", showarrow=False, font=label_font, xanchor="left", yanchor="bottom")
     fig.add_annotation(x=max_x, y=min_y, text="轉弱", showarrow=False, font=label_font, xanchor="right", yanchor="bottom")
     fig.add_annotation(x=min_x, y=max_y, text="改善", showarrow=False, font=label_font, xanchor="left", yanchor="top")
@@ -136,37 +136,64 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
 
     return fig
 
+@st.cache_data
+def get_hourly_data(ticker):
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=30)
+    data = yf.download(ticker, start=start_date, end=end_date, interval="1h")
+    return data
+
+def create_candlestick_chart(data, ticker):
+    fig = go.Figure(data=[go.Candlestick(x=data.index,
+                    open=data['Open'],
+                    high=data['High'],
+                    low=data['Low'],
+                    close=data['Close'])])
+    
+    fig.update_layout(
+        title=f"{ticker} - Hourly Candlestick Chart (Last 30 Days)",
+        xaxis_title="Date",
+        yaxis_title="Price",
+        height=500
+    )
+    
+    return fig
+
 # Main Streamlit app
-st.title("FX Relative Rotation Graph (RRG)")
+st.title("FX Relative Rotation Graph (RRG) Dashboard")
 
 # Sidebar
-st.sidebar.header("Chart Settings")
+st.sidebar.header("FX Pairs")
 
-timeframe = st.sidebar.selectbox(
-    "Select Timeframe",
-    options=["Weekly", "Daily"],
-    key="timeframe_selector"
-)
+# Get FX data
+data, benchmark, fx_pairs, fx_names = get_fx_data("Daily")  # We'll use daily data for both charts
 
-tail_length = st.sidebar.slider(
-    "Tail Length",
-    min_value=1,
-    max_value=52,
-    value=5,
-    step=1,
-    help="Number of data points to show in the chart"
-)
+# Create 3 columns for FX pair buttons
+col1, col2, col3 = st.sidebar.columns(3)
+columns = [col1, col2, col3]
+
+for i, pair in enumerate(fx_pairs):
+    if columns[i % 3].button(fx_names.get(pair, pair)):
+        st.session_state.selected_pair = pair
 
 # Main content area
-data, benchmark, fx_pairs, fx_names = get_fx_data(timeframe)
-if data is not None and not data.empty:
-    fig = create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length)
-    st.plotly_chart(fig, use_container_width=True)
-    st.subheader("Latest Data")
-    st.dataframe(data.tail())
-else:
-    st.error("No data available for the selected timeframe. Please try a different selection.")
+col_daily, col_weekly = st.columns(2)
 
+with col_daily:
+    fig_daily = create_rrg_chart(data, benchmark, fx_pairs, fx_names, "Daily", 5)
+    st.plotly_chart(fig_daily, use_container_width=True)
+
+with col_weekly:
+    fig_weekly = create_rrg_chart(data.resample('W-FRI').last(), benchmark, fx_pairs, fx_names, "Weekly", 5)
+    st.plotly_chart(fig_weekly, use_container_width=True)
+
+# Candlestick chart
+if 'selected_pair' in st.session_state:
+    hourly_data = get_hourly_data(st.session_state.selected_pair)
+    fig_candlestick = create_candlestick_chart(hourly_data, st.session_state.selected_pair)
+    st.plotly_chart(fig_candlestick, use_container_width=True)
+
+# Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
     st.write("Raw data:")
     st.write(data)
@@ -174,3 +201,4 @@ if st.checkbox("Show raw data"):
     st.write(fx_pairs)
     st.write("Benchmark:")
     st.write(benchmark)
+
