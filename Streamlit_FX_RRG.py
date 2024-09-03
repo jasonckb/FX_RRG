@@ -62,7 +62,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
         rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
-    boundary_data = rrg_data.iloc[-5:]
+    boundary_data = rrg_data.iloc[-6:]
     
     padding = 0.1
     min_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
@@ -269,7 +269,7 @@ col_hourly_rrg, col_candlestick = st.columns(2)
 
 #hourly chart creation:
 with col_hourly_rrg:
-    fig_hourly = create_rrg_chart(hourly_data, benchmark, fx_pairs, fx_names, "Hourly",4)  
+    fig_hourly = create_rrg_chart(hourly_data, benchmark, fx_pairs, fx_names, "Hourly",5)  
     st.plotly_chart(fig_hourly, use_container_width=True)
 
 with col_candlestick:
