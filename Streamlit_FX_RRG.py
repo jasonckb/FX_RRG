@@ -27,13 +27,14 @@ def get_fx_data(timeframe):
     end_date = datetime.now()
     if timeframe == "Weekly":
         start_date = end_date - timedelta(weeks=100)
+    elif timeframe == "Hourly":
+        start_date = end_date - timedelta(days=7)
     else:  # Daily
         start_date = end_date - timedelta(days=500)
 
     benchmark = "HKDUSD=X"
     fx_pairs = ["GBPUSD=X", "EURUSD=X", "AUDUSD=X", "NZDUSD=X", "CADUSD=X", "CHFUSD=X", "JPYUSD=X", "CNYUSD=X", 
-                "EURGBP=X", "AUDNZD=X", "AUDCAD=X", "NZDCAD=X", "DX-Y.NYB", "AUDJPY=X"
-                ]
+                "EURGBP=X", "AUDNZD=X", "AUDCAD=X", "NZDCAD=X", "DX-Y.NYB", "AUDJPY=X"]
     fx_names = {
         "GBPUSD=X": "GBP", "EURUSD=X": "EUR", "AUDUSD=X": "AUD", "NZDUSD=X": "NZD",
         "CADUSD=X": "CAD", "JPYUSD=X": "JPY", "EURGBP=X": "EURGBP", "AUDNZD=X": "AUDNZD",
@@ -42,13 +43,16 @@ def get_fx_data(timeframe):
     }
 
     tickers_to_download = [benchmark] + fx_pairs
-    data = yf.download(tickers_to_download, start=start_date, end=end_date)['Close']
+    interval = "1h" if timeframe == "Hourly" else "1d"
+    data = yf.download(tickers_to_download, start=start_date, end=end_date, interval=interval)['Close']
     
     return data, benchmark, fx_pairs, fx_names
 
 def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length):
     if timeframe == "Weekly":
         data_resampled = data.resample('W-FRI').last()
+    elif timeframe == "Hourly":
+        data_resampled = data
     else:  # Daily
         data_resampled = data
 
@@ -142,11 +146,23 @@ def get_hourly_data(ticker):
     start_date = end_date - timedelta(days=20)
     data = yf.download(ticker, start=start_date, end=end_date, interval="1h")
     
+    if data.empty:
+        st.warning(f"No data available for {ticker}")
+        return pd.DataFrame()
+
+    # Ensure the index is DatetimeIndex
+    if not isinstance(data.index, pd.DatetimeIndex):
+        data.index = pd.to_datetime(data.index)
+    
     # Remove rows with NaN values (non-trading hours)
     data = data.dropna()
     
     # Remove weekends
     data = data[data.index.dayofweek < 5]
+    
+    if data.empty:
+        st.warning(f"No valid data available for {ticker} after removing weekends and NaN values")
+        return pd.DataFrame()
     
     # Reset index to create a continuous series
     data = data.reset_index()
@@ -208,7 +224,8 @@ st.title("FX Relative Rotation Graph (RRG) Dashboard")
 st.sidebar.header("FX Pairs")
 
 # Get FX data
-data, benchmark, fx_pairs, fx_names = get_fx_data("Daily")
+daily_data, benchmark, fx_pairs, fx_names = get_fx_data("Daily")
+hourly_data, _, _, _ = get_fx_data("Hourly")
 
 # Create 2 columns for FX pair buttons
 col1, col2 = st.sidebar.columns(2)
@@ -235,38 +252,58 @@ if refresh_button:
 col_daily, col_weekly = st.columns(2)
 
 with col_daily:
-    fig_daily = create_rrg_chart(data, benchmark, fx_pairs, fx_names, "Daily", 5)
+    fig_daily = create_rrg_chart(daily_data, benchmark, fx_pairs, fx_names, "Daily", 5)
     st.plotly_chart(fig_daily, use_container_width=True)
 
 with col_weekly:
-    fig_weekly = create_rrg_chart(data.resample('W-FRI').last(), benchmark, fx_pairs, fx_names, "Weekly", 5)
+    fig_weekly = create_rrg_chart(daily_data.resample('W-FRI').last(), benchmark, fx_pairs, fx_names, "Weekly", 5)
     st.plotly_chart(fig_weekly, use_container_width=True)
 
-# Candlestick chart
-if 'selected_pair' in st.session_state:
-    hourly_data = get_hourly_data(st.session_state.selected_pair)
-    
-    # Convert trigger_level to float if it's not empty
-    trigger_level_float = None
-    if st.session_state.trigger_level:
-        try:
-            trigger_level_float = float(st.session_state.trigger_level)
-        except ValueError:
-            st.warning("Invalid trigger level. Please enter a valid number.")
-    
-    fig_candlestick = create_candlestick_chart(hourly_data, st.session_state.selected_pair, trigger_level_float)
-    
-    # Reset button for candlestick chart
-    if st.button("Reset Candlestick Chart"):
-        del st.session_state.selected_pair
-        st.session_state.trigger_level = ""
-        st.rerun()
-    
-    st.plotly_chart(fig_candlestick, use_container_width=True)
+# New row for Hourly RRG and Candlestick chart
+col_hourly_rrg, col_candlestick = st.columns(2)
+
+with col_hourly_rrg:
+    fig_hourly = create_rrg_chart(hourly_data, benchmark, fx_pairs, fx_names, "Hourly", 24)  # 24 hours tail
+    st.plotly_chart(fig_hourly, use_container_width=True)
+
+with col_candlestick:
+    if 'selected_pair' in st.session_state:
+        pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
+        
+        if not pair_hourly_data.empty:
+            # Convert trigger_level to float if it's not empty
+            trigger_level_float = None
+            if st.session_state.trigger_level:
+                try:
+                    trigger_level_float = float(st.session_state.trigger_level)
+                except ValueError:
+                    st.warning("Invalid trigger level. Please enter a valid number.")
+            
+            fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
+            
+            # Reset button for candlestick chart
+            if st.button("Reset Candlestick Chart"):
+                del st.session_state.selected_pair
+                st.session_state.trigger_level = ""
+                st.rerun()
+            
+            st.plotly_chart(fig_candlestick, use_container_width=True)
+        else:
+            st.write(f"No valid data available for {st.session_state.selected_pair}")
+    else:
+        st.write("Select an FX pair to view the candlestick chart.")
 
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
-    st.write("Raw data:")
+    st.write("Daily Raw data:")
+    st.write(daily_data)
+    st.write("Hourly Raw data:")
+    st.write(hourly_data)
+    st.write("FX Pairs:")
+    st.write(fx_pairs)
+    st.write("Benchmark:")
+    st.write(benchmark)
+
 
 
 
