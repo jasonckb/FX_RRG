@@ -204,21 +204,17 @@ for i, pair in enumerate(fx_pairs):
         st.session_state.selected_pair = pair
 
 # Trigger Level Input
-trigger_level = st.sidebar.text_input("Trigger Level Input", "")
+if 'trigger_level' not in st.session_state:
+    st.session_state.trigger_level = ""
 
-# Refresh and Reset buttons
+st.session_state.trigger_level = st.sidebar.text_input("Trigger Level Input", st.session_state.trigger_level)
+
+# Refresh button
 refresh_button = st.sidebar.button("Refresh Data")
-reset_button = st.sidebar.button("Reset")
 
 if refresh_button:
     st.cache_data.clear()
-    st.experimental_rerun()
-
-if reset_button:
-    if 'selected_pair' in st.session_state:
-        del st.session_state.selected_pair
-    trigger_level = ""
-    st.experimental_rerun()
+    st.rerun()
 
 # Main content area
 col_daily, col_weekly = st.columns(2)
@@ -237,13 +233,20 @@ if 'selected_pair' in st.session_state:
     
     # Convert trigger_level to float if it's not empty
     trigger_level_float = None
-    if trigger_level:
+    if st.session_state.trigger_level:
         try:
-            trigger_level_float = float(trigger_level)
+            trigger_level_float = float(st.session_state.trigger_level)
         except ValueError:
             st.warning("Invalid trigger level. Please enter a valid number.")
     
     fig_candlestick = create_candlestick_chart(hourly_data, st.session_state.selected_pair, trigger_level_float)
+    
+    # Reset button for candlestick chart
+    if st.button("Reset Candlestick Chart"):
+        del st.session_state.selected_pair
+        st.session_state.trigger_level = ""
+        st.rerun()
+    
     st.plotly_chart(fig_candlestick, use_container_width=True)
 
 # Show raw data if checkbox is selected
@@ -254,6 +257,7 @@ if st.checkbox("Show raw data"):
     st.write(fx_pairs)
     st.write("Benchmark:")
     st.write(benchmark)
+
 
 
 
