@@ -62,7 +62,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
         rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
-    boundary_data = rrg_data.iloc[-10:]
+    boundary_data = rrg_data.iloc[-5:]
     
     padding = 0.1
     min_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
@@ -93,13 +93,9 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         y_values = rrg_data[f"{pair}_RS-Momentum"].dropna()
         
         if len(x_values) > 0 and len(y_values) > 0:
-            # Always show the last 8 points for hourly chart
-            if timeframe == "Hourly":
-                x_values = x_values.iloc[-8:]
-                y_values = y_values.iloc[-8:]
-            else:
-                x_values = x_values.iloc[-tail_length:]
-                y_values = y_values.iloc[-tail_length:]
+            # Always show the last 5 points for hourly chart
+            x_values = x_values.iloc[-tail_length:]
+            y_values = y_values.iloc[-tail_length:]
             
             current_quadrant = get_quadrant(x_values.iloc[-1], y_values.iloc[-1])
             color = curve_colors[current_quadrant]
@@ -119,7 +115,6 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 name=f"{pair} (latest)", marker=dict(color=color, size=9, symbol='circle'),
                 text=[chart_label], textposition="top center", showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
-              
             ))
 
     fig.update_layout(
