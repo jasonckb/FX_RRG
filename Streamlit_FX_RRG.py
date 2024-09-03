@@ -90,13 +90,12 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             current_quadrant = get_quadrant(x_values.iloc[-1], y_values.iloc[-1])
             color = curve_colors[current_quadrant]
             
-            legend_label = f"{pair} ({fx_names.get(pair, '')})"
             chart_label = fx_names.get(pair, pair)
             
             fig.add_trace(go.Scatter(
-                x=x_values, y=y_values, mode='lines+markers', name=legend_label,
+                x=x_values, y=y_values, mode='lines+markers', name=chart_label,
                 line=dict(color=color, width=2), marker=dict(size=6, symbol='circle'),
-                legendgroup=pair, showlegend=True
+                showlegend=False
             ))
             
             text_position = "top center" if y_values.iloc[-1] > y_values.iloc[-2] else "bottom center"
@@ -104,7 +103,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             fig.add_trace(go.Scatter(
                 x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
                 name=f"{pair} (latest)", marker=dict(color=color, size=12, symbol='circle'),
-                text=[chart_label], textposition=text_position, legendgroup=pair, showlegend=False,
+                text=[chart_label], textposition=text_position, showlegend=False,
                 textfont=dict(color='black', size=12, family='Arial Black')
             ))
 
@@ -112,12 +111,12 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         title=f"FX Relative Rotation Graph (RRG) ({timeframe})",
         xaxis_title="RS-Ratio",
         yaxis_title="RS-Momentum",
-        width=600,
-        height=500,
+        width=700,
+        height=600,
         xaxis=dict(range=[min_x, max_x], title_font=dict(size=14)),
         yaxis=dict(range=[min_y, max_y], title_font=dict(size=14)),
         plot_bgcolor='white',
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=1.02, title=f"Legend<br>Benchmark: {benchmark}"),
+        showlegend=False,
         shapes=[
             dict(type="rect", xref="x", yref="y", x0=min_x, y0=100, x1=100, y1=max_y, fillcolor="lightblue", opacity=0.35, line_width=0),
             dict(type="rect", xref="x", yref="y", x0=100, y0=100, x1=max_x, y1=max_y, fillcolor="lightgreen", opacity=0.35, line_width=0),
@@ -128,7 +127,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         ]
     )
 
-    label_font = dict(size=20, color='black', family='Arial Black')
+    label_font = dict(size=24, color='black', family='Arial Black')
     fig.add_annotation(x=min_x, y=min_y, text="落後", showarrow=False, font=label_font, xanchor="left", yanchor="bottom")
     fig.add_annotation(x=max_x, y=min_y, text="轉弱", showarrow=False, font=label_font, xanchor="right", yanchor="bottom")
     fig.add_annotation(x=min_x, y=max_y, text="改善", showarrow=False, font=label_font, xanchor="left", yanchor="top")
