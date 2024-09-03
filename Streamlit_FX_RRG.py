@@ -147,6 +147,15 @@ def get_hourly_data(ticker):
     # Remove weekends
     data = data[data.index.dayofweek < 5]
     
+    # Reset index to create a continuous series
+    data = data.reset_index()
+    
+    # Create a continuous datetime index
+    data['continuous_datetime'] = pd.date_range(start=data['Datetime'].min(), periods=len(data), freq='H')
+    
+    # Set the continuous datetime as the index
+    data.set_index('continuous_datetime', inplace=True)
+    
     return data
 
 def create_candlestick_chart(data, ticker, trigger_level=None):
@@ -162,6 +171,11 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
         yaxis_title="Price",
         height=700,
         xaxis_rangeslider_visible=False,  # Remove the range slider
+        xaxis=dict(
+            tickformat='%Y-%m-%d %H:%M',
+            tickmode='auto',
+            nticks=10,
+        )
     )
     
     # Add trigger level line if provided
