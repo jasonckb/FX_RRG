@@ -32,13 +32,15 @@ def get_fx_data(timeframe):
 
     benchmark = "HKDUSD=X"
     fx_pairs = ["GBPUSD=X", "EURUSD=X", "AUDUSD=X", "NZDUSD=X", "CADUSD=X", "CHFUSD=X", "JPYUSD=X", "CNYUSD=X", 
-                "EURGBP=X", "AUDNZD=X", "AUDCAD=X", "NZDCAD=X", "DX-Y.NYB", "GBPAUD=X", "GBPNZD=X", "GBPCAD=X"
-                ]
+                "EURGBP=X", "AUDNZD=X", "AUDCAD=X", "NZDCAD=X", "DX-Y.NYB", "GBPAUD=X", "GBPNZD=X", "GBPCAD=X",
+                "EURAUD=X", "EURNZD=X", "EURCAD=X", "EURJPY=X", "GBPJPY=X", "AUDJPY=X", "NZDJPY=X", "CADJPY=X"]
     fx_names = {
         "GBPUSD=X": "GBP", "EURUSD=X": "EUR", "AUDUSD=X": "AUD", "NZDUSD=X": "NZD",
         "CADUSD=X": "CAD", "JPYUSD=X": "JPY", "EURGBP=X": "EURGBP", "AUDNZD=X": "AUDNZD",
         "AUDCAD=X": "AUDCAD", "NZDCAD=X": "NZDCAD", "DX-Y.NYB": "DXY", "CHFUSD=X": "CHF", "CNYUSD=X": "CNY",
-        "GBPAUD=X": "GBPAUD", "GBPNZD=X": "GBPNZD", "GBPCAD=X": "GBPCAD"
+        "GBPAUD=X": "GBPAUD", "GBPNZD=X": "GBPNZD", "GBPCAD=X": "GBPCAD", "EURAUD=X": "EURAUD",
+        "EURNZD=X": "EURNZD", "EURCAD=X": "EURCAD", "EURJPY=X": "EURJPY", "GBPJPY=X": "GBPJPY",
+        "AUDJPY=X": "AUDJPY", "NZDJPY=X": "NZDJPY", "CADJPY=X": "CADJPY"
     }
 
     tickers_to_download = [benchmark] + fx_pairs
@@ -201,7 +203,6 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
     
     return fig
 
-
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
 
@@ -245,7 +246,7 @@ with col_weekly:
 
 # Candlestick chart
 if 'selected_pair' in st.session_state:
-    hourly_data = get_hourly_data(st.session_state.selected_pair)
+    four_hour_data = get_4hour_data(st.session_state.selected_pair)
     
     # Convert trigger_level to float if it's not empty
     trigger_level_float = None
@@ -255,7 +256,7 @@ if 'selected_pair' in st.session_state:
         except ValueError:
             st.warning("Invalid trigger level. Please enter a valid number.")
     
-    fig_candlestick = create_candlestick_chart(hourly_data, st.session_state.selected_pair, trigger_level_float)
+    fig_candlestick = create_candlestick_chart(four_hour_data, st.session_state.selected_pair, trigger_level_float)
     
     # Reset button for candlestick chart
     if st.button("Reset Candlestick Chart"):
@@ -268,6 +269,12 @@ if 'selected_pair' in st.session_state:
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
     st.write("Raw data:")
+    st.write(data)
+    st.write("FX Pairs:")
+    st.write(fx_pairs)
+    st.write("Benchmark:")
+    st.write(benchmark)
+
 
 
 
