@@ -144,11 +144,23 @@ def get_4hour_data(ticker):
     start_date = end_date - timedelta(days=20)
     data = yf.download(ticker, start=start_date, end=end_date, interval="4h")
     
+    if data.empty:
+        st.warning(f"No data available for {ticker}")
+        return pd.DataFrame()  # Return an empty DataFrame if no data
+    
+    # Ensure the index is DatetimeIndex
+    if not isinstance(data.index, pd.DatetimeIndex):
+        data.index = pd.to_datetime(data.index)
+    
     # Remove rows with NaN values (non-trading hours)
     data = data.dropna()
     
     # Remove weekends
     data = data[data.index.dayofweek < 5]
+    
+    if data.empty:
+        st.warning(f"No valid data available for {ticker} after removing weekends and NaN values")
+        return pd.DataFrame()  # Return an empty DataFrame if no valid data
     
     # Reset index to create a continuous series
     data = data.reset_index()
@@ -161,110 +173,33 @@ def get_4hour_data(ticker):
     
     return data
 
-def create_candlestick_chart(data, ticker, trigger_level=None):
-    fig = go.Figure(data=[go.Candlestick(x=data.index,
-                    open=data['Open'],
-                    high=data['High'],
-                    low=data['Low'],
-                    close=data['Close'])])
-    
-    fig.update_layout(
-        title=f"{ticker} - 4-Hour Candlestick Chart (Last 20 Days)",
-        xaxis_title="Date",
-        yaxis_title="Price",
-        height=700,
-        xaxis_rangeslider_visible=False,
-        xaxis=dict(
-            tickformat='%Y-%m-%d %H:%M',
-            tickmode='auto',
-            nticks=10,
-        )
-    )
-    
-    # Add trigger level line if provided
-    if trigger_level is not None:
-        fig.add_shape(
-            type="line",
-            x0=data.index[0],
-            y0=trigger_level,
-            x1=data.index[-1],
-            y1=trigger_level,
-            line=dict(color="blue", width=2, dash="dash"),
-        )
-        fig.add_annotation(
-            x=data.index[-1],
-            y=trigger_level,
-            text=f"Trigger: {trigger_level}",
-            showarrow=False,
-            yshift=10,
-            xshift=10,
-            font=dict(color="blue"),
-        )
-    
-    return fig
-
-# Main Streamlit app
-st.title("FX Relative Rotation Graph (RRG) Dashboard")
-
-# Sidebar
-st.sidebar.header("FX Pairs")
-
-# Get FX data
-data, benchmark, fx_pairs, fx_names = get_fx_data("Daily")
-
-# Create 2 columns for FX pair buttons
-col1, col2 = st.sidebar.columns(2)
-columns = [col1, col2]
-
-for i, pair in enumerate(fx_pairs):
-    if columns[i % 2].button(fx_names.get(pair, pair)):
-        st.session_state.selected_pair = pair
-
-# Trigger Level Input
-if 'trigger_level' not in st.session_state:
-    st.session_state.trigger_level = ""
-
-st.session_state.trigger_level = st.sidebar.text_input("Trigger Level Input", st.session_state.trigger_level)
-
-# Refresh button
-refresh_button = st.sidebar.button("Refresh Data")
-
-if refresh_button:
-    st.cache_data.clear()
-    st.rerun()
-
-# Main content area
-col_daily, col_weekly = st.columns(2)
-
-with col_daily:
-    fig_daily = create_rrg_chart(data, benchmark, fx_pairs, fx_names, "Daily", 5)
-    st.plotly_chart(fig_daily, use_container_width=True)
-
-with col_weekly:
-    fig_weekly = create_rrg_chart(data.resample('W-FRI').last(), benchmark, fx_pairs, fx_names, "Weekly", 5)
-    st.plotly_chart(fig_weekly, use_container_width=True)
+# Update the main app section where the candlestick chart is created:
 
 # Candlestick chart
 if 'selected_pair' in st.session_state:
     four_hour_data = get_4hour_data(st.session_state.selected_pair)
     
-    # Convert trigger_level to float if it's not empty
-    trigger_level_float = None
-    if st.session_state.trigger_level:
-        try:
-            trigger_level_float = float(st.session_state.trigger_level)
-        except ValueError:
-            st.warning("Invalid trigger level. Please enter a valid number.")
-    
-    fig_candlestick = create_candlestick_chart(four_hour_data, st.session_state.selected_pair, trigger_level_float)
-    
-    # Reset button for candlestick chart
-    if st.button("Reset Candlestick Chart"):
-        del st.session_state.selected_pair
-        st.session_state.trigger_level = ""
-        st.rerun()
-    
-    st.plotly_chart(fig_candlestick, use_container_width=True)
+    if not four_hour_data.empty:
+        # Convert trigger_level to float if it's not empty
+        trigger_level_float = None
+        if st.session_state.trigger_level:
+            try:
+                trigger_level_float = float(st.session_state.trigger_level)
+            except ValueError:
+                st.warning("Invalid trigger level. Please enter a valid number.")
+        
+        fig_candlestick = create_candlestick_chart(four_hour_data, st.session_state.selected_pair, trigger_level_float)
+        
+        # Reset button for candlestick chart
+        if st.button("Reset Candlestick Chart"):
+            del st.session_state.selected_pair
+            st.session_state.trigger_level = ""
+            st.rerun()
+        
+        st.plotly_chart(fig_candlestick, use_container_width=True)
+    else:
+        st.warning(f"No data available to create candlestick chart for {st.session_state.selected_pair}")
+
 
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
