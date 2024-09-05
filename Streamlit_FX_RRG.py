@@ -238,18 +238,22 @@ def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, 
     daily_rs, daily_rm = calculate_rrg_values(daily_data, daily_data[benchmark])
     hourly_rs, hourly_rm = calculate_rrg_values(hourly_data, hourly_data[benchmark])
     
-    # 確保所有數據具有相同的索引
-    common_index = weekly_rs.index.intersection(daily_rs.index).intersection(hourly_rs.index)
+    # 使用最新的時間戳作為索引
+    latest_timestamp = max(weekly_rs.index.max(), daily_rs.index.max(), hourly_rs.index.max())
     
-    weighted_rs = (weekly_rs.loc[common_index] * weekly_weight + 
-                   daily_rs.loc[common_index] * daily_weight + 
-                   hourly_rs.loc[common_index] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+    weighted_rs = (weekly_rs.iloc[-1] * weekly_weight + 
+                   daily_rs.iloc[-1] * daily_weight + 
+                   hourly_rs.iloc[-1] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
     
-    weighted_rm = (weekly_rm.loc[common_index] * weekly_weight + 
-                   daily_rm.loc[common_index] * daily_weight + 
-                   hourly_rm.loc[common_index] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+    weighted_rm = (weekly_rm.iloc[-1] * weekly_weight + 
+                   daily_rm.iloc[-1] * daily_weight + 
+                   hourly_rm.iloc[-1] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
     
-    return weighted_rs, weighted_rm
+    # 創建包含單一時間戳的 Series
+    weighted_rs_series = pd.Series({latest_timestamp: weighted_rs})
+    weighted_rm_series = pd.Series({latest_timestamp: weighted_rm})
+    
+    return weighted_rs_series, weighted_rm_series
 
 # 主 Streamlit 應用程序
 st.title("外匯相對旋轉圖（RRG）儀表板")
@@ -313,19 +317,14 @@ with col_weighted_rrg:
         "RS-Ratio": weighted_rs,
         "RS-Momentum": weighted_rm
     })
-    fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "加權複合", 5)
-    st.plotly_chart(fig_weighted, use_container_width=True)
-
-# 蠟燭圖在單列中顯示
-with col_weighted_rrg:
-    weighted_rs, weighted_rm = calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight)
-    weighted_data = pd.DataFrame({
-        "RS-Ratio": weighted_rs,
-        "RS-Momentum": weighted_rm
-    })
     
     if not weighted_data.empty:
-        fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "加權複合", 5)
+        # 為每個外匯對創建加權數據
+        for pair in fx_pairs:
+            weighted_data[f"{pair}_RS-Ratio"] = weighted_data["RS-Ratio"]
+            weighted_data[f"{pair}_RS-Momentum"] = weighted_data["RS-Momentum"]
+        
+        fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "加權複合", 1)
         st.plotly_chart(fig_weighted, use_container_width=True)
     else:
         st.warning("無法創建加權複合 RRG 圖表。請確保有足夠的數據。")
