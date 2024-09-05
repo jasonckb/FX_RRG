@@ -252,10 +252,13 @@ columns = [col1, col2]
 for i, pair in enumerate(fx_pairs):
     if columns[i % 2].button(fx_names.get(pair, pair)):
         st.session_state.selected_pair = pair
+        st.session_state.trigger_level = ""  # 清除觸發水平輸入
 
 # Trigger Level Input
 if 'trigger_level' not in st.session_state:
     st.session_state.trigger_level = ""
+
+st.session_state.trigger_level = st.sidebar.text_input("Trigger Level Input", st.session_state.trigger_level)
 
 st.session_state.trigger_level = st.sidebar.text_input("Trigger Level Input", st.session_state.trigger_level)
 
