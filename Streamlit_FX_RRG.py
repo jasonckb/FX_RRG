@@ -80,15 +80,15 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
 
     for pair in fx_pairs:
         if timeframe == "加權複合":
-            x_value = rrg_data.loc[pair, 'RS-Ratio']
-            y_value = rrg_data.loc[pair, 'RS-Momentum']
+            x_value = float(rrg_data.loc[pair, 'RS-Ratio'])
+            y_value = float(rrg_data.loc[pair, 'RS-Momentum'])
             x_values = [x_value]
             y_values = [y_value]
         else:
-            x_values = rrg_data[f"{pair}_RS-Ratio"].dropna().iloc[-tail_length:]
-            y_values = rrg_data[f"{pair}_RS-Momentum"].dropna().iloc[-tail_length:]
+            x_values = rrg_data[f"{pair}_RS-Ratio"].dropna().iloc[-tail_length:].tolist()
+            y_values = rrg_data[f"{pair}_RS-Momentum"].dropna().iloc[-tail_length:].tolist()
         
-        if len(x_values) > 0 and len(y_values) > 0:
+        if x_values and y_values:
             current_quadrant = get_quadrant(x_values[-1], y_values[-1])
             color = curve_colors[current_quadrant]
             
@@ -108,6 +108,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 text=[chart_label], textposition=text_position, showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
             ))
+
             
     fig.update_layout(
         title=f"外匯相對旋轉圖（RRG）({timeframe})",
