@@ -155,7 +155,7 @@ def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, 
         daily_rs, daily_rm = calculate_rrg_values(daily_data[pair], daily_data[benchmark])
         
         st.write(f"Weekly RS/RM: {weekly_rs.iloc[-1]:.2f} / {weekly_rm.iloc[-1]:.2f}")
-        st.write(f"Daily RS/RM: {daily_rs.iloc[-1]:.2f} / {daily_rm.iloc[-1]:.2f}")
+        st.write(f"Daily RS/RM: {daily_rs.iloc[-1]} / {daily_rm.iloc[-1]}")  # Removed .2f formatting to see full value
 
         weighted_rs_list = []
         weighted_rm_list = []
@@ -164,20 +164,26 @@ def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, 
             # Calculate RRG values for each hourly data point
             hourly_rs, hourly_rm = calculate_rrg_values(hourly_data[pair].loc[:date], hourly_data[benchmark].loc[:date])
             
-            total_weight = weekly_weight + daily_weight + hourly_weight
-            weighted_rs = (weekly_rs.iloc[-1] * weekly_weight + 
-                           daily_rs.iloc[-1] * daily_weight + 
-                           hourly_rs.iloc[-1] * hourly_weight) / total_weight
+            st.write(f"Hourly RS/RM for {date}: {hourly_rs.iloc[-1]} / {hourly_rm.iloc[-1]}")  # Debug hourly values
             
-            weighted_rm = (weekly_rm.iloc[-1] * weekly_weight + 
-                           daily_rm.iloc[-1] * daily_weight + 
-                           hourly_rm.iloc[-1] * hourly_weight) / total_weight
+            total_weight = weekly_weight + daily_weight + hourly_weight
+            
+            # Handle NaN values by using only available data
+            valid_rs = [val for val in [weekly_rs.iloc[-1], daily_rs.iloc[-1], hourly_rs.iloc[-1]] if not pd.isna(val)]
+            valid_rm = [val for val in [weekly_rm.iloc[-1], daily_rm.iloc[-1], hourly_rm.iloc[-1]] if not pd.isna(val)]
+            
+            if valid_rs and valid_rm:
+                weighted_rs = sum(val * w for val, w in zip(valid_rs, [weekly_weight, daily_weight, hourly_weight][:len(valid_rs)])) / sum([weekly_weight, daily_weight, hourly_weight][:len(valid_rs)])
+                weighted_rm = sum(val * w for val, w in zip(valid_rm, [weekly_weight, daily_weight, hourly_weight][:len(valid_rm)])) / sum([weekly_weight, daily_weight, hourly_weight][:len(valid_rm)])
+            else:
+                weighted_rs = np.nan
+                weighted_rm = np.nan
             
             weighted_rs_list.append(weighted_rs)
             weighted_rm_list.append(weighted_rm)
         
-        st.write(f"Weighted RS list length: {len(weighted_rs_list)}")
-        st.write(f"Weighted RM list length: {len(weighted_rm_list)}")
+        st.write(f"Weighted RS list: {weighted_rs_list}")
+        st.write(f"Weighted RM list: {weighted_rm_list}")
 
         weighted_rs_dict[pair] = pd.Series(weighted_rs_list, index=recent_hourly.index)
         weighted_rm_dict[pair] = pd.Series(weighted_rm_list, index=recent_hourly.index)
