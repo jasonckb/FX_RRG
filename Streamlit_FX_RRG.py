@@ -48,6 +48,18 @@ def get_fx_data(timeframe):
     
     return data, benchmark, fx_pairs, fx_names
 
+def get_quadrant(x, y):
+    if isinstance(x, (pd.Series, pd.DataFrame)):
+        x = x.iloc[-1]
+    if isinstance(y, (pd.Series, pd.DataFrame)):
+        y = y.iloc[-1]
+    x = float(x)
+    y = float(y)
+    if x < 100 and y < 100: return "落後"
+    elif x >= 100 and y < 100: return "轉弱"
+    elif x < 100 and y >= 100: return "改善"
+    else: return "領先"
+
 def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length):
     if timeframe != "加權複合":
         rrg_data = pd.DataFrame()
@@ -64,11 +76,11 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     curve_colors = {"落後": "red", "轉弱": "orange", "改善": "darkblue", "領先": "darkgreen"}
 
     for pair in fx_pairs:
-        x_values = rrg_data[f"{pair}_RS-Ratio"].dropna().iloc[-tail_length:].tolist()
-        y_values = rrg_data[f"{pair}_RS-Momentum"].dropna().iloc[-tail_length:].tolist()
+        x_values = rrg_data[f"{pair}_RS-Ratio"].dropna().iloc[-tail_length:]
+        y_values = rrg_data[f"{pair}_RS-Momentum"].dropna().iloc[-tail_length:]
         
-        if x_values and y_values:
-            current_quadrant = get_quadrant(x_values[-1], y_values[-1])
+        if not x_values.empty and not y_values.empty:
+            current_quadrant = get_quadrant(x_values.iloc[-1], y_values.iloc[-1])
             color = curve_colors[current_quadrant]
             
             chart_label = fx_names.get(pair, pair)
@@ -80,12 +92,15 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             ))
             
             fig.add_trace(go.Scatter(
-                x=[x_values[-1]], y=[y_values[-1]], mode='markers+text',
+                x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
                 name=f"{pair} (最新)", marker=dict(color=color, size=9, symbol='circle'),
                 text=[chart_label], textposition="top center", showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
             ))
-            
+
+    min_x, max_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min(), rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
+    min_y, max_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min(), rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
+
     fig.update_layout(
         title=f"外匯相對旋轉圖（RRG）({timeframe})",
         xaxis_title="RS-比率",
@@ -115,93 +130,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     return fig
 
 @st.cache_data
-def get_hourly_data(ticker):
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=20)
-    
-    usd_based_tickers = {
-        "CADUSD=X": "USDCAD=X",
-        "JPYUSD=X": "USDJPY=X",
-        "CNYUSD=X": "USDCNY=X",
-        "CHFUSD=X": "USDCHF=X"
-    }
-    
-    download_ticker = usd_based_tickers.get(ticker, ticker)
-    
-    data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
-    
-    if data.empty:
-        st.warning(f"無法獲取 {download_ticker} 的數據")
-        return pd.DataFrame()
-
-    if not isinstance(data.index, pd.DatetimeIndex):
-        data.index = pd.to_datetime(data.index)
-    
-    data = data.dropna()
-    data = data[data.index.dayofweek < 5]
-    
-    if data.empty:
-        st.warning(f"移除週末和空值後，{download_ticker} 沒有有效數據")
-        return pd.DataFrame()
-    
-    data = data.reset_index()
-    data['continuous_datetime'] = pd.date_range(start=data['Datetime'].min(), periods=len(data), freq='H')
-    data.set_index('continuous_datetime', inplace=True)
-    
-    return data
-
-def create_candlestick_chart(data, ticker, trigger_level=None):
-    usd_based_tickers = {
-        "CADUSD=X": "USDCAD=X",
-        "JPYUSD=X": "USDJPY=X",
-        "CNYUSD=X": "USDCNY=X",
-        "CHFUSD=X": "USDCHF=X"
-    }
-    display_ticker = usd_based_tickers.get(ticker, ticker)
-    
-    fig = go.Figure(data=[go.Candlestick(x=data.index,
-                    open=data['Open'],
-                    high=data['High'],
-                    low=data['Low'],
-                    close=data['Close'])])
-    
-    fig.update_layout(
-        title=f"{display_ticker} - 小時蠟燭圖（最近20天）",
-        xaxis_title="日期",
-        yaxis_title="價格",
-        height=700,
-        xaxis_rangeslider_visible=False,
-        xaxis=dict(
-            tickformat='%Y-%m-%d %H:%M',
-            tickmode='auto',
-            nticks=10,
-        )
-    )
-    
-    if trigger_level is not None:
-        fig.add_shape(
-            type="line",
-            x0=data.index[0],
-            y0=trigger_level,
-            x1=data.index[-1],
-            y1=trigger_level,
-            line=dict(color="blue", width=2, dash="dash"),
-        )
-        fig.add_annotation(
-            x=data.index[-1],
-            y=trigger_level,
-            text=f"觸發: {trigger_level}",
-            showarrow=False,
-            yshift=10,
-            xshift=10,
-            font=dict(color="blue"),
-        )
-    
-    return fig
-
-@st.cache_data
 def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight):
-    # 確保所有數據都有相同的最新 10 個時間點
     common_dates = sorted(set(weekly_data.index) & set(daily_data.index) & set(hourly_data.index))[-10:]
     
     weighted_rs_dict = {}
@@ -216,7 +145,6 @@ def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, 
             daily_rs, daily_rm = calculate_rrg_values(daily_data[pair].loc[:date], daily_data[benchmark].loc[:date])
             hourly_rs, hourly_rm = calculate_rrg_values(hourly_data[pair].loc[:date], hourly_data[benchmark].loc[:date])
             
-            # 計算加權平均值
             total_weight = weekly_weight + daily_weight + hourly_weight
             weighted_rs = (weekly_rs.iloc[-1] * weekly_weight + 
                            daily_rs.iloc[-1] * daily_weight + 
@@ -303,33 +231,6 @@ with col_weighted_rrg:
     else:
         st.warning("無法創建加權複合 RRG 圖表。請確保有足夠的數據。")
 
-# 對於蠟燭圖，確保在創建圖表之前檢查數據是否為空：
-if 'selected_pair' in st.session_state:
-    pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
-    
-    if not pair_hourly_data.empty:
-        # 將 trigger_level 轉換為浮點數（如果不為空）
-        trigger_level_float = None
-        if st.session_state.trigger_level:
-            try:
-                trigger_level_float = float(st.session_state.trigger_level)
-            except ValueError:
-                st.warning("無效的觸發水平。請輸入有效數字。")
-        
-        fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
-        
-        # 蠟燭圖的重置按鈕
-        if st.button("重置蠟燭圖"):
-            del st.session_state.selected_pair
-            st.session_state.trigger_level = ""
-            st.rerun()
-        
-        st.plotly_chart(fig_candlestick, use_container_width=True)
-    else:
-        st.warning(f"無法獲取 {st.session_state.selected_pair} 的有效數據")
-else:
-    st.write("選擇一個外匯對以查看蠟燭圖。")
-
 # 如果選中複選框則顯示原始數據
 if st.checkbox("顯示原始數據"):
     st.write("日線原始數據:")
@@ -340,3 +241,5 @@ if st.checkbox("顯示原始數據"):
     st.write(fx_pairs)
     st.write("基準:")
     st.write(benchmark)
+    st.write("加權複合數據:")
+    st.write(weighted_data)
