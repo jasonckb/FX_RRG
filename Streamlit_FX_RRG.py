@@ -235,6 +235,16 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
     
     return fig
 
+def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight):
+    weekly_rs, weekly_rm = calculate_rrg_values(weekly_data, weekly_data[benchmark])
+    daily_rs, daily_rm = calculate_rrg_values(daily_data, daily_data[benchmark])
+    hourly_rs, hourly_rm = calculate_rrg_values(hourly_data, hourly_data[benchmark])
+    
+    weighted_rs = (weekly_rs * weekly_weight + daily_rs * daily_weight + hourly_rs * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+    weighted_rm = (weekly_rm * weekly_weight + daily_rm * daily_weight + hourly_rm * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+    
+    return weighted_rs, weighted_rm
+
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
 
@@ -244,6 +254,13 @@ st.sidebar.header("FX Pairs")
 # Get FX data
 daily_data, benchmark, fx_pairs, fx_names = get_fx_data("Daily")
 hourly_data, _, _, _ = get_fx_data("Hourly")
+weekly_data = daily_data.resample('W-FRI').last()
+
+# Add sliders for weights
+st.sidebar.header("Weighted Composite RRG Settings")
+weekly_weight = st.sidebar.slider("Weekly Weight", 0.0, 2.0, 1.2, 0.1)
+daily_weight = st.sidebar.slider("Daily Weight", 0.0, 2.0, 1.0, 0.1)
+hourly_weight = st.sidebar.slider("Hourly Weight", 0.0, 2.0, 0.8, 0.1)
 
 # Create 2 columns for FX pair buttons
 col1, col2 = st.sidebar.columns(2)
@@ -274,42 +291,51 @@ with col_daily:
     st.plotly_chart(fig_daily, use_container_width=True)
 
 with col_weekly:
-    fig_weekly = create_rrg_chart(daily_data.resample('W-FRI').last(), benchmark, fx_pairs, fx_names, "Weekly", 5)
+    fig_weekly = create_rrg_chart(weekly_data, benchmark, fx_pairs, fx_names, "Weekly", 5)
     st.plotly_chart(fig_weekly, use_container_width=True)
 
-# New row for Hourly RRG and Candlestick chart
-col_hourly_rrg, col_candlestick = st.columns(2)
+# New row for Hourly RRG and Weighted Composite RRG
+col_hourly_rrg, col_weighted_rrg = st.columns(2)
 
 with col_hourly_rrg:
     fig_hourly = create_rrg_chart(hourly_data, benchmark, fx_pairs, fx_names, "Hourly", 5)
     st.plotly_chart(fig_hourly, use_container_width=True)
 
-with col_candlestick:
-    if 'selected_pair' in st.session_state:
-        pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
+with col_weighted_rrg:
+    weighted_rs, weighted_rm = calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight)
+    weighted_data = pd.DataFrame({
+        "RS-Ratio": weighted_rs,
+        "RS-Momentum": weighted_rm
+    })
+    fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "Weighted Composite", 5)
+    st.plotly_chart(fig_weighted, use_container_width=True)
+
+# Candlestick chart in a single column
+if 'selected_pair' in st.session_state:
+    pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
+    
+    if not pair_hourly_data.empty:
+        # Convert trigger_level to float if it's not empty
+        trigger_level_float = None
+        if st.session_state.trigger_level:
+            try:
+                trigger_level_float = float(st.session_state.trigger_level)
+            except ValueError:
+                st.warning("Invalid trigger level. Please enter a valid number.")
         
-        if not pair_hourly_data.empty:
-            # Convert trigger_level to float if it's not empty
-            trigger_level_float = None
-            if st.session_state.trigger_level:
-                try:
-                    trigger_level_float = float(st.session_state.trigger_level)
-                except ValueError:
-                    st.warning("Invalid trigger level. Please enter a valid number.")
-            
-            fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
-            
-            # Reset button for candlestick chart
-            if st.button("Reset Candlestick Chart"):
-                del st.session_state.selected_pair
-                st.session_state.trigger_level = ""
-                st.rerun()
-            
-            st.plotly_chart(fig_candlestick, use_container_width=True)
-        else:
-            st.write(f"No valid data available for {st.session_state.selected_pair}")
+        fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
+        
+        # Reset button for candlestick chart
+        if st.button("Reset Candlestick Chart"):
+            del st.session_state.selected_pair
+            st.session_state.trigger_level = ""
+            st.rerun()
+        
+        st.plotly_chart(fig_candlestick, use_container_width=True)
     else:
-        st.write("Select an FX pair to view the candlestick chart.")
+        st.write(f"No valid data available for {st.session_state.selected_pair}")
+else:
+    st.write("Select an FX pair to view the candlestick chart.")
 
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
