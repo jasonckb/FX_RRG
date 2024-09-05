@@ -238,8 +238,16 @@ def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, 
     daily_rs, daily_rm = calculate_rrg_values(daily_data, daily_data[benchmark])
     hourly_rs, hourly_rm = calculate_rrg_values(hourly_data, hourly_data[benchmark])
     
-    weighted_rs = (weekly_rs * weekly_weight + daily_rs * daily_weight + hourly_rs * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
-    weighted_rm = (weekly_rm * weekly_weight + daily_rm * daily_weight + hourly_rm * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+    # 確保所有數據具有相同的索引
+    common_index = weekly_rs.index.intersection(daily_rs.index).intersection(hourly_rs.index)
+    
+    weighted_rs = (weekly_rs.loc[common_index] * weekly_weight + 
+                   daily_rs.loc[common_index] * daily_weight + 
+                   hourly_rs.loc[common_index] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+    
+    weighted_rm = (weekly_rm.loc[common_index] * weekly_weight + 
+                   daily_rm.loc[common_index] * daily_weight + 
+                   hourly_rm.loc[common_index] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
     
     return weighted_rs, weighted_rm
 
@@ -309,6 +317,20 @@ with col_weighted_rrg:
     st.plotly_chart(fig_weighted, use_container_width=True)
 
 # 蠟燭圖在單列中顯示
+with col_weighted_rrg:
+    weighted_rs, weighted_rm = calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight)
+    weighted_data = pd.DataFrame({
+        "RS-Ratio": weighted_rs,
+        "RS-Momentum": weighted_rm
+    })
+    
+    if not weighted_data.empty:
+        fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "加權複合", 5)
+        st.plotly_chart(fig_weighted, use_container_width=True)
+    else:
+        st.warning("無法創建加權複合 RRG 圖表。請確保有足夠的數據。")
+
+# 對於蠟燭圖，確保在創建圖表之前檢查數據是否為空：
 if 'selected_pair' in st.session_state:
     pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
     
@@ -331,7 +353,7 @@ if 'selected_pair' in st.session_state:
         
         st.plotly_chart(fig_candlestick, use_container_width=True)
     else:
-        st.write(f"無法獲取 {st.session_state.selected_pair} 的有效數據")
+        st.warning(f"無法獲取 {st.session_state.selected_pair} 的有效數據")
 else:
     st.write("選擇一個外匯對以查看蠟燭圖。")
 
