@@ -110,29 +110,33 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             x_values = x_values.iloc[-tail_length:]
             y_values = y_values.iloc[-tail_length:]
             
+            # 確保我們傳遞單個值而不是整個 Series
             current_quadrant = get_quadrant(x_values.iloc[-1], y_values.iloc[-1])
             color = curve_colors[current_quadrant]
             
             chart_label = fx_names.get(pair, pair)
             
+            # 將 x_values 和 y_values 轉換為列表
+            x_list = x_values.tolist()
+            y_list = y_values.tolist()
+            
             fig.add_trace(go.Scatter(
-                x=x_values, y=y_values, mode='lines+markers', name=chart_label,
+                x=x_list, y=y_list, mode='lines+markers', name=chart_label,
                 line=dict(color=color, width=2), marker=dict(size=5, symbol='circle'),
                 showlegend=False
             ))
             
-            if len(y_values) > 1:
-                text_position = "top center" if y_values.iloc[-1] > y_values.iloc[-2] else "bottom center"
+            if len(y_list) > 1:
+                text_position = "top center" if y_list[-1] > y_list[-2] else "bottom center"
             else:
                 text_position = "top center"
             
             fig.add_trace(go.Scatter(
-                x=[float(x_values.iloc[-1])], y=[float(y_values.iloc[-1])], mode='markers+text',
+                x=[x_list[-1]], y=[y_list[-1]], mode='markers+text',
                 name=f"{pair} (最新)", marker=dict(color=color, size=9, symbol='circle'),
                 text=[chart_label], textposition=text_position, showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
             ))
-
     fig.update_layout(
         title=f"外匯相對旋轉圖（RRG）({timeframe})",
         xaxis_title="RS-比率",
