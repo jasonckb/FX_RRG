@@ -65,36 +65,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
             rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
-    if len(rrg_data) > 1:
-        boundary_data = rrg_data.iloc[-10:]
-        
-        padding = 0.1
-        min_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
-        max_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
-        min_y = boundary_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
-        max_y = boundary_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
-
-        range_x = max_x - min_x
-        range_y = max_y - min_y
-        min_x = max(min_x - range_x * padding, 60)
-        max_x = min(max_x + range_x * padding, 140)
-        min_y = max(min_y - range_y * padding, 70)
-        max_y = min(max_y + range_y * padding, 130)
-    else:
-        # 如果只有一個數據點，使用固定的範圍
-        min_x, max_x = 60, 140
-        min_y, max_y = 70, 130
-
-    fig = go.Figure()
-
-    quadrant_colors = {"落後": "pink", "轉弱": "lightyellow", "改善": "lightblue", "領先": "lightgreen"}
-    curve_colors = {"落後": "red", "轉弱": "orange", "改善": "darkblue", "領先": "darkgreen"}
-
     def get_quadrant(x, y):
-        if isinstance(x, (pd.Series, pd.DataFrame)):
-            x = x.iloc[-1]
-        if isinstance(y, (pd.Series, pd.DataFrame)):
-            y = y.iloc[-1]
         x = float(x)
         y = float(y)
         if x < 100 and y < 100: return "落後"
@@ -102,41 +73,42 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         elif x < 100 and y >= 100: return "改善"
         else: return "領先"
 
+    fig = go.Figure()
+
+    quadrant_colors = {"落後": "pink", "轉弱": "lightyellow", "改善": "lightblue", "領先": "lightgreen"}
+    curve_colors = {"落後": "red", "轉弱": "orange", "改善": "darkblue", "領先": "darkgreen"}
+
     for pair in fx_pairs:
-        x_values = rrg_data[f"{pair}_RS-Ratio"].dropna()
-        y_values = rrg_data[f"{pair}_RS-Momentum"].dropna()
+        if timeframe == "加權複合":
+            x_value = rrg_data.loc[pair, 'RS-Ratio']
+            y_value = rrg_data.loc[pair, 'RS-Momentum']
+            x_values = [x_value]
+            y_values = [y_value]
+        else:
+            x_values = rrg_data[f"{pair}_RS-Ratio"].dropna().iloc[-tail_length:]
+            y_values = rrg_data[f"{pair}_RS-Momentum"].dropna().iloc[-tail_length:]
         
         if len(x_values) > 0 and len(y_values) > 0:
-            x_values = x_values.iloc[-tail_length:]
-            y_values = y_values.iloc[-tail_length:]
-            
-            # 確保我們傳遞單個值而不是整個 Series
-            current_quadrant = get_quadrant(x_values.iloc[-1], y_values.iloc[-1])
+            current_quadrant = get_quadrant(x_values[-1], y_values[-1])
             color = curve_colors[current_quadrant]
             
             chart_label = fx_names.get(pair, pair)
             
-            # 將 x_values 和 y_values 轉換為列表
-            x_list = x_values.tolist()
-            y_list = y_values.tolist()
-            
             fig.add_trace(go.Scatter(
-                x=x_list, y=y_list, mode='lines+markers', name=chart_label,
+                x=x_values, y=y_values, mode='lines+markers', name=chart_label,
                 line=dict(color=color, width=2), marker=dict(size=5, symbol='circle'),
                 showlegend=False
             ))
             
-            if len(y_list) > 1:
-                text_position = "top center" if y_list[-1] > y_list[-2] else "bottom center"
-            else:
-                text_position = "top center"
+            text_position = "top center"
             
             fig.add_trace(go.Scatter(
-                x=[x_list[-1]], y=[y_list[-1]], mode='markers+text',
+                x=[x_values[-1]], y=[y_values[-1]], mode='markers+text',
                 name=f"{pair} (最新)", marker=dict(color=color, size=9, symbol='circle'),
                 text=[chart_label], textposition=text_position, showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
             ))
+            
     fig.update_layout(
         title=f"外匯相對旋轉圖（RRG）({timeframe})",
         xaxis_title="RS-比率",
