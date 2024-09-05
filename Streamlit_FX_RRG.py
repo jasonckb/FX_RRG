@@ -79,14 +79,8 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     curve_colors = {"落後": "red", "轉弱": "orange", "改善": "darkblue", "領先": "darkgreen"}
 
     for pair in fx_pairs:
-        if timeframe == "加權複合":
-            x_value = float(rrg_data.loc[pair, 'RS-Ratio'])
-            y_value = float(rrg_data.loc[pair, 'RS-Momentum'])
-            x_values = [x_value]
-            y_values = [y_value]
-        else:
-            x_values = rrg_data[f"{pair}_RS-Ratio"].dropna().iloc[-tail_length:].tolist()
-            y_values = rrg_data[f"{pair}_RS-Momentum"].dropna().iloc[-tail_length:].tolist()
+        x_values = rrg_data[f"{pair}_RS-Ratio"].dropna().iloc[-tail_length:].tolist()
+        y_values = rrg_data[f"{pair}_RS-Momentum"].dropna().iloc[-tail_length:].tolist()
         
         if x_values and y_values:
             current_quadrant = get_quadrant(x_values[-1], y_values[-1])
@@ -100,14 +94,13 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 showlegend=False
             ))
             
-            text_position = "top center"
-            
             fig.add_trace(go.Scatter(
                 x=[x_values[-1]], y=[y_values[-1]], mode='markers+text',
                 name=f"{pair} (最新)", marker=dict(color=color, size=9, symbol='circle'),
-                text=[chart_label], textposition=text_position, showlegend=False,
+                text=[chart_label], textposition="top center", showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
             ))
+
 
             
     fig.update_layout(
@@ -225,26 +218,29 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
 
 @st.cache_data
 def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight):
-    weekly_rs, weekly_rm = calculate_rrg_values(weekly_data, weekly_data[benchmark])
-    daily_rs, daily_rm = calculate_rrg_values(daily_data, daily_data[benchmark])
-    hourly_rs, hourly_rm = calculate_rrg_values(hourly_data, hourly_data[benchmark])
+    # 確保所有數據都有相同的最新 10 個時間點
+    common_dates = sorted(set(weekly_data.index) & set(daily_data.index) & set(hourly_data.index))[-10:]
     
-    # 使用最新的時間戳作為索引
-    latest_timestamp = max(weekly_rs.index.max(), daily_rs.index.max(), hourly_rs.index.max())
+    weighted_rs_list = []
+    weighted_rm_list = []
     
-    weighted_rs = (weekly_rs.iloc[-1] * weekly_weight + 
-                   daily_rs.iloc[-1] * daily_weight + 
-                   hourly_rs.iloc[-1] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+    for date in common_dates:
+        weekly_rs, weekly_rm = calculate_rrg_values(weekly_data.loc[:date], weekly_data.loc[:date, benchmark])
+        daily_rs, daily_rm = calculate_rrg_values(daily_data.loc[:date], daily_data.loc[:date, benchmark])
+        hourly_rs, hourly_rm = calculate_rrg_values(hourly_data.loc[:date], hourly_data.loc[:date, benchmark])
+        
+        weighted_rs = (weekly_rs.iloc[-1] * weekly_weight + 
+                       daily_rs.iloc[-1] * daily_weight + 
+                       hourly_rs.iloc[-1] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+        
+        weighted_rm = (weekly_rm.iloc[-1] * weekly_weight + 
+                       daily_rm.iloc[-1] * daily_weight + 
+                       hourly_rm.iloc[-1] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+        
+        weighted_rs_list.append(weighted_rs)
+        weighted_rm_list.append(weighted_rm)
     
-    weighted_rm = (weekly_rm.iloc[-1] * weekly_weight + 
-                   daily_rm.iloc[-1] * daily_weight + 
-                   hourly_rm.iloc[-1] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
-    
-    # 創建包含單一時間戳的 Series
-    weighted_rs_series = pd.Series({latest_timestamp: weighted_rs})
-    weighted_rm_series = pd.Series({latest_timestamp: weighted_rm})
-    
-    return weighted_rs_series, weighted_rm_series
+    return pd.Series(weighted_rs_list, index=common_dates), pd.Series(weighted_rm_list, index=common_dates)
 
 # 主 Streamlit 應用程序
 st.title("外匯相對旋轉圖（RRG）儀表板")
@@ -305,13 +301,12 @@ with col_hourly_rrg:
 with col_weighted_rrg:
     weighted_rs, weighted_rm = calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight)
     weighted_data = pd.DataFrame()
-    
     for pair in fx_pairs:
         weighted_data[f"{pair}_RS-Ratio"] = weighted_rs
         weighted_data[f"{pair}_RS-Momentum"] = weighted_rm
     
     if not weighted_data.empty:
-        fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "加權複合", 1)
+        fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "加權複合", 10)
         st.plotly_chart(fig_weighted, use_container_width=True)
     else:
         st.warning("無法創建加權複合 RRG 圖表。請確保有足夠的數據。")
