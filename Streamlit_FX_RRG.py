@@ -161,7 +161,6 @@ def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, 
         weighted_rm_dict[pair] = pd.Series(weighted_rm_list, index=common_dates)
     
     return weighted_rs_dict, weighted_rm_dict
-
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
 
@@ -230,6 +229,10 @@ with col_weighted_rrg:
         st.plotly_chart(fig_weighted, use_container_width=True)
     else:
         st.warning("Unable to create Weighted Composite RRG chart. Please ensure there is sufficient data.")
+    
+    # Debug: Print weighted_data
+    st.write("Weighted Composite Data:")
+    st.write(weighted_data)
 
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
