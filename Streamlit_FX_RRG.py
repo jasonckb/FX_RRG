@@ -266,7 +266,12 @@ for i, pair in enumerate(fx_pairs):
 if 'trigger_level' not in st.session_state:
     st.session_state.trigger_level = ""
 
-st.session_state.trigger_level = st.sidebar.text_input("Trigger Level Input", value=st.session_state.trigger_level, key="trigger_level_input")
+new_trigger_level = st.sidebar.text_input("Trigger Level Input", value=st.session_state.trigger_level, key="trigger_level_input")
+
+if new_trigger_level != st.session_state.trigger_level:
+    st.session_state.trigger_level = new_trigger_level
+    st.rerun()
+    
 # Refresh button
 refresh_button = st.sidebar.button("Refresh Data")
 
@@ -308,10 +313,10 @@ with col_candlestick:
             fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
             
             # Reset button for candlestick chart
-            #if st.button("Reset Candlestick Chart"):
-                #del st.session_state.selected_pair
-                #st.session_state.trigger_level = ""
-                #st.rerun()
+            if st.button("Reset Candlestick Chart"):
+                del st.session_state.selected_pair
+                st.session_state.trigger_level = ""
+                st.rerun()
             
             st.plotly_chart(fig_candlestick, use_container_width=True)
         else:
