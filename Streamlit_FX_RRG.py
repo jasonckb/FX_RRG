@@ -65,20 +65,25 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
             rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
-    boundary_data = rrg_data.iloc[-10:]
-    
-    padding = 0.1
-    min_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
-    max_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
-    min_y = boundary_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
-    max_y = boundary_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
+    if len(rrg_data) > 1:
+        boundary_data = rrg_data.iloc[-10:]
+        
+        padding = 0.1
+        min_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
+        max_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
+        min_y = boundary_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
+        max_y = boundary_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
 
-    range_x = max_x - min_x
-    range_y = max_y - min_y
-    min_x = max(min_x - range_x * padding, 60)
-    max_x = min(max_x + range_x * padding, 140)
-    min_y = max(min_y - range_y * padding, 70)
-    max_y = min(max_y + range_y * padding, 130)
+        range_x = max_x - min_x
+        range_y = max_y - min_y
+        min_x = max(min_x - range_x * padding, 60)
+        max_x = min(max_x + range_x * padding, 140)
+        min_y = max(min_y - range_y * padding, 70)
+        max_y = min(max_y + range_y * padding, 130)
+    else:
+        # 如果只有一個數據點，使用固定的範圍
+        min_x, max_x = 60, 140
+        min_y, max_y = 70, 130
 
     fig = go.Figure()
 
@@ -121,6 +126,8 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 text=[chart_label], textposition=text_position, showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
             ))
+
+    # ... 其餘的函數保持不變 ...
 
     fig.update_layout(
         title=f"外匯相對旋轉圖（RRG）({timeframe})",
