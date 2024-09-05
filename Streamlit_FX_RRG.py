@@ -91,6 +91,10 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     curve_colors = {"落後": "red", "轉弱": "orange", "改善": "darkblue", "領先": "darkgreen"}
 
     def get_quadrant(x, y):
+        if isinstance(x, pd.Series):
+            x = x.iloc[-1]
+        if isinstance(y, pd.Series):
+            y = y.iloc[-1]
         if x < 100 and y < 100: return "落後"
         elif x >= 100 and y < 100: return "轉弱"
         elif x < 100 and y >= 100: return "改善"
@@ -104,7 +108,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             x_values = x_values.iloc[-tail_length:]
             y_values = y_values.iloc[-tail_length:]
             
-            current_quadrant = get_quadrant(x_values.iloc[-1], y_values.iloc[-1])
+            current_quadrant = get_quadrant(x_values, y_values)
             color = curve_colors[current_quadrant]
             
             chart_label = fx_names.get(pair, pair)
@@ -126,8 +130,6 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 text=[chart_label], textposition=text_position, showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
             ))
-
-    # ... 其餘的函數保持不變 ...
 
     fig.update_layout(
         title=f"外匯相對旋轉圖（RRG）({timeframe})",
