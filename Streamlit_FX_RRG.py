@@ -308,10 +308,10 @@ with col_candlestick:
             fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
             
             # Reset button for candlestick chart
-            if st.button("Reset Candlestick Chart"):
-                del st.session_state.selected_pair
-                st.session_state.trigger_level = ""
-                st.rerun()
+            #if st.button("Reset Candlestick Chart"):
+                #del st.session_state.selected_pair
+                #st.session_state.trigger_level = ""
+                #st.rerun()
             
             st.plotly_chart(fig_candlestick, use_container_width=True)
         else:
