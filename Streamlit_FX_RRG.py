@@ -131,6 +131,11 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
 
 @st.cache_data
 def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight):
+    st.write("Debug: Entering calculate_weighted_rrg function")
+    st.write(f"Weekly data shape: {weekly_data.shape}")
+    st.write(f"Daily data shape: {daily_data.shape}")
+    st.write(f"Hourly data shape: {hourly_data.shape}")
+
     # Get the most recent weekly and daily data points
     latest_weekly = weekly_data.iloc[-1]
     latest_daily = daily_data.iloc[-1]
@@ -138,14 +143,20 @@ def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, 
     # Use the last 10 hourly data points
     recent_hourly = hourly_data.iloc[-10:]
     
+    st.write(f"Recent hourly data shape: {recent_hourly.shape}")
+
     weighted_rs_dict = {}
     weighted_rm_dict = {}
     
     for pair in fx_pairs:
+        st.write(f"Processing pair: {pair}")
         # Calculate RRG values for the latest weekly and daily data
         weekly_rs, weekly_rm = calculate_rrg_values(weekly_data[pair], weekly_data[benchmark])
         daily_rs, daily_rm = calculate_rrg_values(daily_data[pair], daily_data[benchmark])
         
+        st.write(f"Weekly RS/RM: {weekly_rs.iloc[-1]:.2f} / {weekly_rm.iloc[-1]:.2f}")
+        st.write(f"Daily RS/RM: {daily_rs.iloc[-1]:.2f} / {daily_rm.iloc[-1]:.2f}")
+
         weighted_rs_list = []
         weighted_rm_list = []
         
@@ -165,9 +176,13 @@ def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, 
             weighted_rs_list.append(weighted_rs)
             weighted_rm_list.append(weighted_rm)
         
+        st.write(f"Weighted RS list length: {len(weighted_rs_list)}")
+        st.write(f"Weighted RM list length: {len(weighted_rm_list)}")
+
         weighted_rs_dict[pair] = pd.Series(weighted_rs_list, index=recent_hourly.index)
         weighted_rm_dict[pair] = pd.Series(weighted_rm_list, index=recent_hourly.index)
     
+    st.write("Debug: Exiting calculate_weighted_rrg function")
     return weighted_rs_dict, weighted_rm_dict
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
@@ -226,31 +241,25 @@ with col_hourly_rrg:
     st.plotly_chart(fig_hourly, use_container_width=True)
 
 with col_weighted_rrg:
-    weighted_rs_dict, weighted_rm_dict = calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight)
-    weighted_data = pd.DataFrame()
-    for pair in fx_pairs:
-        weighted_data[f"{pair}_RS-Ratio"] = weighted_rs_dict[pair]
-        weighted_data[f"{pair}_RS-Momentum"] = weighted_rm_dict[pair]
-    
-    if not weighted_data.empty:
-        fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "Weighted Composite", 10)
-        st.plotly_chart(fig_weighted, use_container_width=True)
-    else:
-        st.warning("Unable to create Weighted Composite RRG chart. Please ensure there is sufficient data.")
-    
-    # Debug: Print weighted_data
-    st.write("Weighted Composite Data:")
-    st.write(weighted_data)
-
-# Show raw data if checkbox is selected
-if st.checkbox("Show raw data"):
-    st.write("Daily Raw data:")
-    st.write(daily_data)
-    st.write("Hourly Raw data:")
-    st.write(hourly_data)
-    st.write("FX Pairs:")
-    st.write(fx_pairs)
-    st.write("Benchmark:")
-    st.write(benchmark)
-    st.write("Weighted Composite data:")
-    st.write(weighted_data)
+    try:
+        weighted_rs_dict, weighted_rm_dict = calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight)
+        weighted_data = pd.DataFrame()
+        for pair in fx_pairs:
+            weighted_data[f"{pair}_RS-Ratio"] = weighted_rs_dict[pair]
+            weighted_data[f"{pair}_RS-Momentum"] = weighted_rm_dict[pair]
+        
+        if not weighted_data.empty:
+            fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "Weighted Composite", 10)
+            st.plotly_chart(fig_weighted, use_container_width=True)
+        else:
+            st.warning("Weighted data is empty. Please check the debug output for more information.")
+        
+        # Debug: Print weighted_data
+        st.write("Weighted Composite Data:")
+        st.write(weighted_data)
+    except Exception as e:
+        st.error(f"An error occurred while calculating weighted RRG: {str(e)}")
+        st.write("Debug information:")
+        st.write(f"Weekly data shape: {weekly_data.shape}")
+        st.write(f"Daily data shape: {daily_data.shape}")
+        st.write(f"Hourly data shape: {hourly_data.shape}")
