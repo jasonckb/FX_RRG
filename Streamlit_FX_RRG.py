@@ -257,15 +257,16 @@ col1, col2 = st.sidebar.columns(2)
 columns = [col1, col2]
 
 for i, pair in enumerate(fx_pairs):
-    if columns[i % 2].button(fx_names.get(pair, pair), key=f"button_{pair}"):
+    if columns[i % 2].button(fx_names.get(pair, pair)):
         st.session_state.selected_pair = pair
-        st.session_state.trigger_level = ""  # 清除觸發水平輸入
+        st.session_state.trigger_level = ""  # Clear the trigger level input
+        st.rerun()  # Force a rerun of the app to update the state
 
 # Trigger Level Input
 if 'trigger_level' not in st.session_state:
     st.session_state.trigger_level = ""
 
-st.session_state.trigger_level = st.sidebar.text_input("Trigger Level Input", st.session_state.trigger_level, key="trigger_level_input")
+st.session_state.trigger_level = st.sidebar.text_input("Trigger Level Input", value=st.session_state.trigger_level, key="trigger_level_input")
 # Refresh button
 refresh_button = st.sidebar.button("Refresh Data")
 
