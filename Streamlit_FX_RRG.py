@@ -91,10 +91,12 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     curve_colors = {"落後": "red", "轉弱": "orange", "改善": "darkblue", "領先": "darkgreen"}
 
     def get_quadrant(x, y):
-        if isinstance(x, pd.Series):
+        if isinstance(x, (pd.Series, pd.DataFrame)):
             x = x.iloc[-1]
-        if isinstance(y, pd.Series):
+        if isinstance(y, (pd.Series, pd.DataFrame)):
             y = y.iloc[-1]
+        x = float(x)
+        y = float(y)
         if x < 100 and y < 100: return "落後"
         elif x >= 100 and y < 100: return "轉弱"
         elif x < 100 and y >= 100: return "改善"
@@ -108,7 +110,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
             x_values = x_values.iloc[-tail_length:]
             y_values = y_values.iloc[-tail_length:]
             
-            current_quadrant = get_quadrant(x_values, y_values)
+            current_quadrant = get_quadrant(x_values.iloc[-1], y_values.iloc[-1])
             color = curve_colors[current_quadrant]
             
             chart_label = fx_names.get(pair, pair)
@@ -125,7 +127,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 text_position = "top center"
             
             fig.add_trace(go.Scatter(
-                x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
+                x=[float(x_values.iloc[-1])], y=[float(y_values.iloc[-1])], mode='markers+text',
                 name=f"{pair} (最新)", marker=dict(color=color, size=9, symbol='circle'),
                 text=[chart_label], textposition=text_position, showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
