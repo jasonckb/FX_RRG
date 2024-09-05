@@ -131,18 +131,26 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
 
 @st.cache_data
 def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight):
-    common_dates = sorted(set(weekly_data.index) & set(daily_data.index) & set(hourly_data.index))[-10:]
+    # Get the most recent weekly and daily data points
+    latest_weekly = weekly_data.iloc[-1]
+    latest_daily = daily_data.iloc[-1]
+    
+    # Use the last 10 hourly data points
+    recent_hourly = hourly_data.iloc[-10:]
     
     weighted_rs_dict = {}
     weighted_rm_dict = {}
     
     for pair in fx_pairs:
+        # Calculate RRG values for the latest weekly and daily data
+        weekly_rs, weekly_rm = calculate_rrg_values(weekly_data[pair], weekly_data[benchmark])
+        daily_rs, daily_rm = calculate_rrg_values(daily_data[pair], daily_data[benchmark])
+        
         weighted_rs_list = []
         weighted_rm_list = []
         
-        for date in common_dates:
-            weekly_rs, weekly_rm = calculate_rrg_values(weekly_data[pair].loc[:date], weekly_data[benchmark].loc[:date])
-            daily_rs, daily_rm = calculate_rrg_values(daily_data[pair].loc[:date], daily_data[benchmark].loc[:date])
+        for date, hourly_row in recent_hourly.iterrows():
+            # Calculate RRG values for each hourly data point
             hourly_rs, hourly_rm = calculate_rrg_values(hourly_data[pair].loc[:date], hourly_data[benchmark].loc[:date])
             
             total_weight = weekly_weight + daily_weight + hourly_weight
@@ -157,8 +165,8 @@ def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, 
             weighted_rs_list.append(weighted_rs)
             weighted_rm_list.append(weighted_rm)
         
-        weighted_rs_dict[pair] = pd.Series(weighted_rs_list, index=common_dates)
-        weighted_rm_dict[pair] = pd.Series(weighted_rm_list, index=common_dates)
+        weighted_rs_dict[pair] = pd.Series(weighted_rs_list, index=recent_hourly.index)
+        weighted_rm_dict[pair] = pd.Series(weighted_rm_list, index=recent_hourly.index)
     
     return weighted_rs_dict, weighted_rm_dict
 # Main Streamlit app
