@@ -49,21 +49,14 @@ def get_fx_data(timeframe):
     return data, benchmark, fx_pairs, fx_names
 
 def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length):
-    if timeframe == "加權複合":
-        rrg_data = data
-    else:
-        if timeframe == "Weekly":
-            data_resampled = data.resample('W-FRI').last()
-        elif timeframe == "Hourly":
-            data_resampled = data
-        else:  # Daily
-            data_resampled = data
-
+    if timeframe != "加權複合":
         rrg_data = pd.DataFrame()
         for pair in fx_pairs:
-            rs_ratio, rs_momentum = calculate_rrg_values(data_resampled[pair], data_resampled[benchmark])
+            rs_ratio, rs_momentum = calculate_rrg_values(data[pair], data[benchmark])
             rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
             rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
+    else:
+        rrg_data = data
 
     def get_quadrant(x, y):
         x = float(x)
@@ -100,7 +93,6 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 text=[chart_label], textposition="top center", showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
             ))
-
 
             
     fig.update_layout(
@@ -221,26 +213,33 @@ def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, 
     # 確保所有數據都有相同的最新 10 個時間點
     common_dates = sorted(set(weekly_data.index) & set(daily_data.index) & set(hourly_data.index))[-10:]
     
-    weighted_rs_list = []
-    weighted_rm_list = []
+    weighted_rs_dict = {}
+    weighted_rm_dict = {}
     
-    for date in common_dates:
-        weekly_rs, weekly_rm = calculate_rrg_values(weekly_data.loc[:date], weekly_data.loc[:date, benchmark])
-        daily_rs, daily_rm = calculate_rrg_values(daily_data.loc[:date], daily_data.loc[:date, benchmark])
-        hourly_rs, hourly_rm = calculate_rrg_values(hourly_data.loc[:date], hourly_data.loc[:date, benchmark])
+    for pair in fx_pairs:
+        weighted_rs_list = []
+        weighted_rm_list = []
         
-        weighted_rs = (weekly_rs.iloc[-1] * weekly_weight + 
-                       daily_rs.iloc[-1] * daily_weight + 
-                       hourly_rs.iloc[-1] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+        for date in common_dates:
+            weekly_rs, weekly_rm = calculate_rrg_values(weekly_data[pair].loc[:date], weekly_data[benchmark].loc[:date])
+            daily_rs, daily_rm = calculate_rrg_values(daily_data[pair].loc[:date], daily_data[benchmark].loc[:date])
+            hourly_rs, hourly_rm = calculate_rrg_values(hourly_data[pair].loc[:date], hourly_data[benchmark].loc[:date])
+            
+            weighted_rs = (weekly_rs.iloc[-1] * weekly_weight + 
+                           daily_rs.iloc[-1] * daily_weight + 
+                           hourly_rs.iloc[-1] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+            
+            weighted_rm = (weekly_rm.iloc[-1] * weekly_weight + 
+                           daily_rm.iloc[-1] * daily_weight + 
+                           hourly_rm.iloc[-1] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
+            
+            weighted_rs_list.append(weighted_rs)
+            weighted_rm_list.append(weighted_rm)
         
-        weighted_rm = (weekly_rm.iloc[-1] * weekly_weight + 
-                       daily_rm.iloc[-1] * daily_weight + 
-                       hourly_rm.iloc[-1] * hourly_weight) / (weekly_weight + daily_weight + hourly_weight)
-        
-        weighted_rs_list.append(weighted_rs)
-        weighted_rm_list.append(weighted_rm)
+        weighted_rs_dict[pair] = pd.Series(weighted_rs_list, index=common_dates)
+        weighted_rm_dict[pair] = pd.Series(weighted_rm_list, index=common_dates)
     
-    return pd.Series(weighted_rs_list, index=common_dates), pd.Series(weighted_rm_list, index=common_dates)
+    return weighted_rs_dict, weighted_rm_dict
 
 # 主 Streamlit 應用程序
 st.title("外匯相對旋轉圖（RRG）儀表板")
@@ -299,11 +298,11 @@ with col_hourly_rrg:
     st.plotly_chart(fig_hourly, use_container_width=True)
 
 with col_weighted_rrg:
-    weighted_rs, weighted_rm = calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight)
+    weighted_rs_dict, weighted_rm_dict = calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight)
     weighted_data = pd.DataFrame()
     for pair in fx_pairs:
-        weighted_data[f"{pair}_RS-Ratio"] = weighted_rs
-        weighted_data[f"{pair}_RS-Momentum"] = weighted_rm
+        weighted_data[f"{pair}_RS-Ratio"] = weighted_rs_dict[pair]
+        weighted_data[f"{pair}_RS-Momentum"] = weighted_rm_dict[pair]
     
     if not weighted_data.empty:
         fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "加權複合", 10)
