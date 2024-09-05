@@ -235,6 +235,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
     
     return fig
 
+@st.cache_data
 def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight):
     weekly_rs, weekly_rm = calculate_rrg_values(weekly_data, weekly_data[benchmark])
     daily_rs, daily_rm = calculate_rrg_values(daily_data, daily_data[benchmark])
@@ -307,7 +308,7 @@ with col_weighted_rrg:
         "RS-Ratio": weighted_rs,
         "RS-Momentum": weighted_rm
     })
-    fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "Weighted Composite", 5)
+    fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "加權複合", 5)
     st.plotly_chart(fig_weighted, use_container_width=True)
 
 # Candlestick chart in a single column
