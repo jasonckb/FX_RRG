@@ -48,38 +48,54 @@ def get_fx_data(timeframe):
     
     return data, benchmark, fx_pairs, fx_names
 
-def get_quadrant(x, y):
-    if isinstance(x, (pd.Series, pd.DataFrame)):
-        x = x.iloc[-1]
-    if isinstance(y, (pd.Series, pd.DataFrame)):
-        y = y.iloc[-1]
-    x = float(x)
-    y = float(y)
-    if x < 100 and y < 100: return "Lagging"
-    elif x >= 100 and y < 100: return "Weakening"
-    elif x < 100 and y >= 100: return "Improving"
-    else: return "Leading"
-
 def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length):
-    if timeframe != "Weighted Composite":
-        rrg_data = pd.DataFrame()
-        for pair in fx_pairs:
-            rs_ratio, rs_momentum = calculate_rrg_values(data[pair], data[benchmark])
-            rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
-            rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
-    else:
-        rrg_data = data
+    if timeframe == "Weekly":
+        data_resampled = data.resample('W-FRI').last()
+    elif timeframe == "Hourly":
+        data_resampled = data
+    else:  # Daily
+        data_resampled = data
+
+    rrg_data = pd.DataFrame()
+    for pair in fx_pairs:
+        rs_ratio, rs_momentum = calculate_rrg_values(data_resampled[pair], data_resampled[benchmark])
+        rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
+        rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
+
+    boundary_data = rrg_data.iloc[-10:]
+    
+    padding = 0.1
+    min_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
+    max_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
+    min_y = boundary_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
+    max_y = boundary_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
+
+    range_x = max_x - min_x
+    range_y = max_y - min_y
+    min_x = max(min_x - range_x * padding, 60)
+    max_x = min(max_x + range_x * padding, 140)
+    min_y = max(min_y - range_y * padding, 70)
+    max_y = min(max_y + range_y * padding, 130)
 
     fig = go.Figure()
 
     quadrant_colors = {"Lagging": "pink", "Weakening": "lightyellow", "Improving": "lightblue", "Leading": "lightgreen"}
     curve_colors = {"Lagging": "red", "Weakening": "orange", "Improving": "darkblue", "Leading": "darkgreen"}
 
+    def get_quadrant(x, y):
+        if x < 100 and y < 100: return "Lagging"
+        elif x >= 100 and y < 100: return "Weakening"
+        elif x < 100 and y >= 100: return "Improving"
+        else: return "Leading"
+
     for pair in fx_pairs:
-        x_values = rrg_data[f"{pair}_RS-Ratio"].dropna().iloc[-tail_length:]
-        y_values = rrg_data[f"{pair}_RS-Momentum"].dropna().iloc[-tail_length:]
+        x_values = rrg_data[f"{pair}_RS-Ratio"].dropna()
+        y_values = rrg_data[f"{pair}_RS-Momentum"].dropna()
         
-        if not x_values.empty and not y_values.empty:
+        if len(x_values) > 0 and len(y_values) > 0:
+            x_values = x_values.iloc[-tail_length:]
+            y_values = y_values.iloc[-tail_length:]
+            
             current_quadrant = get_quadrant(x_values.iloc[-1], y_values.iloc[-1])
             color = curve_colors[current_quadrant]
             
@@ -91,15 +107,18 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 showlegend=False
             ))
             
+            # Determine text position based on momentum comparison
+            if len(y_values) > 1:
+                text_position = "top center" if y_values.iloc[-1] > y_values.iloc[-2] else "bottom center"
+            else:
+                text_position = "top center"  # Default to top if there's only one point
+            
             fig.add_trace(go.Scatter(
                 x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
                 name=f"{pair} (latest)", marker=dict(color=color, size=9, symbol='circle'),
-                text=[chart_label], textposition="top center", showlegend=False,
+                text=[chart_label], textposition=text_position, showlegend=False,
                 textfont=dict(color='black', size=10, family='Arial Black')
             ))
-
-    min_x, max_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min(), rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
-    min_y, max_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min(), rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
 
     fig.update_layout(
         title=f"FX Relative Rotation Graph (RRG) ({timeframe})",
@@ -122,53 +141,100 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     )
 
     label_font = dict(size=24, color='black', family='Arial Black')
-    fig.add_annotation(x=min_x, y=min_y, text="Lagging", showarrow=False, font=label_font, xanchor="left", yanchor="bottom")
-    fig.add_annotation(x=max_x, y=min_y, text="Weakening", showarrow=False, font=label_font, xanchor="right", yanchor="bottom")
-    fig.add_annotation(x=min_x, y=max_y, text="Improving", showarrow=False, font=label_font, xanchor="left", yanchor="top")
-    fig.add_annotation(x=max_x, y=max_y, text="Leading", showarrow=False, font=label_font, xanchor="right", yanchor="top")
+    fig.add_annotation(x=min_x, y=min_y, text="落後", showarrow=False, font=label_font, xanchor="left", yanchor="bottom")
+    fig.add_annotation(x=max_x, y=min_y, text="轉弱", showarrow=False, font=label_font, xanchor="right", yanchor="bottom")
+    fig.add_annotation(x=min_x, y=max_y, text="改善", showarrow=False, font=label_font, xanchor="left", yanchor="top")
+    fig.add_annotation(x=max_x, y=max_y, text="領先", showarrow=False, font=label_font, xanchor="right", yanchor="top")
 
     return fig
 
 @st.cache_data
-def calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight):
-    # 獲取最新的週線和日線數據點
-    latest_weekly = weekly_data.iloc[-1]
-    latest_daily = daily_data.iloc[-1]
+def get_hourly_data(ticker):
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=20)
     
-    # 使用最後10個小時數據點
-    recent_hourly = hourly_data.iloc[-10:]
+    # Map the original ticker to its USD-based version for CAD, JPY, CNY, CHF
+    usd_based_tickers = {
+        "CADUSD=X": "USDCAD=X",
+        "JPYUSD=X": "USDJPY=X",
+        "CNYUSD=X": "USDCNY=X",
+        "CHFUSD=X": "USDCHF=X"
+    }
     
-    weighted_rs_dict = {}
-    weighted_rm_dict = {}
+    # Use the USD-based ticker if it's one of the special cases, otherwise use the original ticker
+    download_ticker = usd_based_tickers.get(ticker, ticker)
     
-    for pair in fx_pairs:
-        # 計算最新週線和日線數據的RRG值
-        weekly_rs, weekly_rm = calculate_rrg_values(weekly_data[pair], weekly_data[benchmark])
-        daily_rs, daily_rm = calculate_rrg_values(daily_data[pair], daily_data[benchmark])
-        
-        weighted_rs_list = []
-        weighted_rm_list = []
-        
-        for date, hourly_row in recent_hourly.iterrows():
-            # 計算每個小時數據點的RRG值
-            hourly_rs, hourly_rm = calculate_rrg_values(hourly_data[pair].loc[:date], hourly_data[benchmark].loc[:date])
-            
-            total_weight = weekly_weight + daily_weight + hourly_weight
-            weighted_rs = (weekly_rs.iloc[-1] * weekly_weight + 
-                           daily_rs.iloc[-1] * daily_weight + 
-                           hourly_rs.iloc[-1] * hourly_weight) / total_weight
-            
-            weighted_rm = (weekly_rm.iloc[-1] * weekly_weight + 
-                           daily_rm.iloc[-1] * daily_weight + 
-                           hourly_rm.iloc[-1] * hourly_weight) / total_weight
-            
-            weighted_rs_list.append(weighted_rs)
-            weighted_rm_list.append(weighted_rm)
-        
-        weighted_rs_dict[pair] = pd.Series(weighted_rs_list, index=recent_hourly.index)
-        weighted_rm_dict[pair] = pd.Series(weighted_rm_list, index=recent_hourly.index)
+    data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
     
-    return weighted_rs_dict, weighted_rm_dict
+    if data.empty:
+        st.warning(f"No data available for {download_ticker}")
+        return pd.DataFrame()
+
+    if not isinstance(data.index, pd.DatetimeIndex):
+        data.index = pd.to_datetime(data.index)
+    
+    data = data.dropna()
+    data = data[data.index.dayofweek < 5]
+    
+    if data.empty:
+        st.warning(f"No valid data available for {download_ticker} after removing weekends and NaN values")
+        return pd.DataFrame()
+    
+    data = data.reset_index()
+    data['continuous_datetime'] = pd.date_range(start=data['Datetime'].min(), periods=len(data), freq='H')
+    data.set_index('continuous_datetime', inplace=True)
+    
+    return data
+
+def create_candlestick_chart(data, ticker, trigger_level=None):
+    usd_based_tickers = {
+        "CADUSD=X": "USDCAD=X",
+        "JPYUSD=X": "USDJPY=X",
+        "CNYUSD=X": "USDCNY=X",
+        "CHFUSD=X": "USDCHF=X"
+    }
+    display_ticker = usd_based_tickers.get(ticker, ticker)
+    
+    fig = go.Figure(data=[go.Candlestick(x=data.index,
+                    open=data['Open'],
+                    high=data['High'],
+                    low=data['Low'],
+                    close=data['Close'])])
+    
+    fig.update_layout(
+        title=f"{display_ticker} - Hourly Candlestick Chart (Last 20 Days)",
+        xaxis_title="Date",
+        yaxis_title="Price",
+        height=700,
+        xaxis_rangeslider_visible=False,
+        xaxis=dict(
+            tickformat='%Y-%m-%d %H:%M',
+            tickmode='auto',
+            nticks=10,
+        )
+    )
+    
+    if trigger_level is not None:
+        fig.add_shape(
+            type="line",
+            x0=data.index[0],
+            y0=trigger_level,
+            x1=data.index[-1],
+            y1=trigger_level,
+            line=dict(color="blue", width=2, dash="dash"),
+        )
+        fig.add_annotation(
+            x=data.index[-1],
+            y=trigger_level,
+            text=f"Trigger: {trigger_level}",
+            showarrow=False,
+            yshift=10,
+            xshift=10,
+            font=dict(color="blue"),
+        )
+    
+    return fig
+
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
 
@@ -178,15 +244,8 @@ st.sidebar.header("FX Pairs")
 # Get FX data
 daily_data, benchmark, fx_pairs, fx_names = get_fx_data("Daily")
 hourly_data, _, _, _ = get_fx_data("Hourly")
-weekly_data = daily_data.resample('W-FRI').last()
 
-# Add weight sliders
-st.sidebar.header("Weighted Composite RRG Settings")
-weekly_weight = st.sidebar.slider("Weekly Weight", 0.0, 2.0, 1.2, 0.1)
-daily_weight = st.sidebar.slider("Daily Weight", 0.0, 2.0, 1.0, 0.1)
-hourly_weight = st.sidebar.slider("Hourly Weight", 0.0, 2.0, 0.8, 0.1)
-
-# Create FX pair buttons
+# Create 2 columns for FX pair buttons
 col1, col2 = st.sidebar.columns(2)
 columns = [col1, col2]
 
@@ -215,36 +274,62 @@ with col_daily:
     st.plotly_chart(fig_daily, use_container_width=True)
 
 with col_weekly:
-    fig_weekly = create_rrg_chart(weekly_data, benchmark, fx_pairs, fx_names, "Weekly", 5)
+    fig_weekly = create_rrg_chart(daily_data.resample('W-FRI').last(), benchmark, fx_pairs, fx_names, "Weekly", 5)
     st.plotly_chart(fig_weekly, use_container_width=True)
 
-# New row for Hourly RRG and Weighted Composite RRG
-col_hourly_rrg, col_weighted_rrg = st.columns(2)
+# New row for Hourly RRG and Candlestick chart
+col_hourly_rrg, col_candlestick = st.columns(2)
 
 with col_hourly_rrg:
     fig_hourly = create_rrg_chart(hourly_data, benchmark, fx_pairs, fx_names, "Hourly", 5)
     st.plotly_chart(fig_hourly, use_container_width=True)
 
-with col_weighted_rrg:
-    try:
-        weighted_rs_dict, weighted_rm_dict = calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight)
-        weighted_data = pd.DataFrame()
-        for pair in fx_pairs:
-            weighted_data[f"{pair}_RS-Ratio"] = weighted_rs_dict[pair]
-            weighted_data[f"{pair}_RS-Momentum"] = weighted_rm_dict[pair]
+with col_candlestick:
+    if 'selected_pair' in st.session_state:
+        pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
-        if not weighted_data.empty:
-            fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "Weighted Composite", 10)
-            st.plotly_chart(fig_weighted, use_container_width=True)
+        if not pair_hourly_data.empty:
+            # Convert trigger_level to float if it's not empty
+            trigger_level_float = None
+            if st.session_state.trigger_level:
+                try:
+                    trigger_level_float = float(st.session_state.trigger_level)
+                except ValueError:
+                    st.warning("Invalid trigger level. Please enter a valid number.")
+            
+            fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
+            
+            # Reset button for candlestick chart
+            if st.button("Reset Candlestick Chart"):
+                del st.session_state.selected_pair
+                st.session_state.trigger_level = ""
+                st.rerun()
+            
+            st.plotly_chart(fig_candlestick, use_container_width=True)
         else:
-            st.warning("Weighted data is empty. Please check the debug output for more information.")
-        
-        # Debug: Print weighted_data
-        st.write("Weighted Composite Data:")
-        st.write(weighted_data)
-    except Exception as e:
-        st.error(f"An error occurred while calculating weighted RRG: {str(e)}")
-        st.write("Debug information:")
-        st.write(f"Weekly data shape: {weekly_data.shape}")
-        st.write(f"Daily data shape: {daily_data.shape}")
-        st.write(f"Hourly data shape: {hourly_data.shape}")
+            st.write(f"No valid data available for {st.session_state.selected_pair}")
+    else:
+        st.write("Select an FX pair to view the candlestick chart.")
+
+# Show raw data if checkbox is selected
+if st.checkbox("Show raw data"):
+    st.write("Daily Raw data:")
+    st.write(daily_data)
+    st.write("Hourly Raw data:")
+    st.write(hourly_data)
+    st.write("FX Pairs:")
+    st.write(fx_pairs)
+    st.write("Benchmark:")
+    st.write(benchmark)
+
+
+
+
+
+
+
+
+
+
+
+
