@@ -49,18 +49,21 @@ def get_fx_data(timeframe):
     return data, benchmark, fx_pairs, fx_names
 
 def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length):
-    if timeframe == "Weekly":
-        data_resampled = data.resample('W-FRI').last()
-    elif timeframe == "Hourly":
-        data_resampled = data
-    else:  # Daily
-        data_resampled = data
+    if timeframe == "加權複合":
+        rrg_data = data
+    else:
+        if timeframe == "Weekly":
+            data_resampled = data.resample('W-FRI').last()
+        elif timeframe == "Hourly":
+            data_resampled = data
+        else:  # Daily
+            data_resampled = data
 
-    rrg_data = pd.DataFrame()
-    for pair in fx_pairs:
-        rs_ratio, rs_momentum = calculate_rrg_values(data_resampled[pair], data_resampled[benchmark])
-        rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
-        rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
+        rrg_data = pd.DataFrame()
+        for pair in fx_pairs:
+            rs_ratio, rs_momentum = calculate_rrg_values(data_resampled[pair], data_resampled[benchmark])
+            rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
+            rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
     boundary_data = rrg_data.iloc[-10:]
     
@@ -313,17 +316,13 @@ with col_hourly_rrg:
 
 with col_weighted_rrg:
     weighted_rs, weighted_rm = calculate_weighted_rrg(weekly_data, daily_data, hourly_data, weekly_weight, daily_weight, hourly_weight)
-    weighted_data = pd.DataFrame({
-        "RS-Ratio": weighted_rs,
-        "RS-Momentum": weighted_rm
-    })
+    weighted_data = pd.DataFrame()
+    
+    for pair in fx_pairs:
+        weighted_data[f"{pair}_RS-Ratio"] = weighted_rs
+        weighted_data[f"{pair}_RS-Momentum"] = weighted_rm
     
     if not weighted_data.empty:
-        # 為每個外匯對創建加權數據
-        for pair in fx_pairs:
-            weighted_data[f"{pair}_RS-Ratio"] = weighted_data["RS-Ratio"]
-            weighted_data[f"{pair}_RS-Momentum"] = weighted_data["RS-Momentum"]
-        
         fig_weighted = create_rrg_chart(weighted_data, benchmark, fx_pairs, fx_names, "加權複合", 1)
         st.plotly_chart(fig_weighted, use_container_width=True)
     else:
