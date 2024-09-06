@@ -8,6 +8,14 @@ from statsmodels.nonparametric.kernel_regression import KernelReg
 
 st.set_page_config(layout="wide", page_title="FX Relative Rotation Graph (RRG) Dashboard")
 
+st.warning("""
+    **Disclaimer:**
+    - This app is for educational purposes only and should not be considered as financial advice.
+    - We do not guarantee the accuracy of the data. The data source is Yahoo Finance, which may have limitations or inaccuracies.
+    - Always conduct your own research and consult with a qualified financial advisor before making any investment decisions.
+""")
+
+
 # Initialize session state variables
 if 'new_pair_selected' not in st.session_state:
     st.session_state.new_pair_selected = False
