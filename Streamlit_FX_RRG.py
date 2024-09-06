@@ -218,7 +218,7 @@ def nadaraya_watson(x, y, x_new, bandwidth=0.5):
     
     return np.array(y_pred)
 
-def create_candlestick_chart(data, ticker, trigger_level=None, bandwidth=0.5):
+def create_candlestick_chart(data, ticker, trigger_level=None, bandwidth=3):
     usd_based_tickers = {
         "CADUSD=X": "USDCAD=X",
         "JPYUSD=X": "USDJPY=X",
@@ -227,23 +227,36 @@ def create_candlestick_chart(data, ticker, trigger_level=None, bandwidth=0.5):
     }
     display_ticker = usd_based_tickers.get(ticker, ticker)
     
+    # Apply Nadaraya-Watson kernel regression
+    X = np.arange(len(data))
+    model = KernelReg(endog=data['Close'].values, exog=X, var_type='c', reg_type='lc', bw=[bandwidth])
+    fitted_values, _ = model.fit()
+
+    # Calculate residuals and standard deviation
+    residuals = data['Close'].values - fitted_values
+    std_dev = 2 * np.std(residuals)
+
+    # Calculate upper and lower envelopes
+    upper_envelope = fitted_values + std_dev
+    lower_envelope = fitted_values - std_dev
+
+    # Create the candlestick chart
     fig = go.Figure(data=[go.Candlestick(x=data.index,
                     open=data['Open'],
                     high=data['High'],
                     low=data['Low'],
-                    close=data['Close'])])
+                    close=data['Close'],
+                    name='Candlesticks')])
     
-    # Apply Nadaraya-Watson smoothing
-    x = np.arange(len(data))
-    y = data['Close'].values
-    x_new = np.linspace(0, len(data) - 1, num=len(data))
-    y_smooth = nadaraya_watson(x, y, x_new, bandwidth=bandwidth)
-    
-    # Add smoothed line to the chart
-    fig.add_trace(go.Scatter(x=data.index, y=y_smooth, mode='lines', name='Smoothed', line=dict(color='blue', width=2)))
-    
+    # Add fitted line
+    fig.add_trace(go.Scatter(x=data.index, y=fitted_values, mode='lines', name='NW Fitted', line=dict(color='blue', width=2)))
+
+    # Add upper and lower envelopes
+    fig.add_trace(go.Scatter(x=data.index, y=upper_envelope, mode='lines', name='Upper Envelope', line=dict(color='green', width=1, dash='dash')))
+    fig.add_trace(go.Scatter(x=data.index, y=lower_envelope, mode='lines', name='Lower Envelope', line=dict(color='red', width=1, dash='dash')))
+
     fig.update_layout(
-        title=f"{display_ticker} - Hourly Candlestick Chart with Nadaraya-Watson Smoothing (Last 20 Days)",
+        title=f"{display_ticker} - Hourly Candlestick Chart with Nadaraya-Watson Bands (Last 20 Days)",
         xaxis_title="Date",
         yaxis_title="Price",
         height=700,
@@ -262,7 +275,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None, bandwidth=0.5):
             y0=trigger_level,
             x1=data.index[-1],
             y1=trigger_level,
-            line=dict(color="red", width=2, dash="dash"),
+            line=dict(color="purple", width=2, dash="dash"),
         )
         fig.add_annotation(
             x=data.index[-1],
@@ -271,10 +284,11 @@ def create_candlestick_chart(data, ticker, trigger_level=None, bandwidth=0.5):
             showarrow=False,
             yshift=10,
             xshift=10,
-            font=dict(color="red"),
+            font=dict(color="purple"),
         )
     
     return fig
+
 
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
@@ -345,7 +359,7 @@ with col_candlestick:
                     st.warning("Invalid trigger level. Please enter a valid number.")
             
             # Add a slider for bandwidth
-            bandwidth = st.slider("Smoothing Bandwidth", min_value=0.1, max_value=2.0, value=0.5, step=0.1)
+            bandwidth = st.slider("Smoothing Bandwidth", min_value=1, max_value=10, value=3, step=1)
             
             fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float, bandwidth)
             
