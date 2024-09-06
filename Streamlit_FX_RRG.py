@@ -193,7 +193,32 @@ def get_hourly_data(ticker):
     
     return data
 
-def create_candlestick_chart(data, ticker, trigger_level=None):
+def nadaraya_watson(x, y, x_new, bandwidth=0.5):
+    """
+    Nadaraya-Watson kernel regression
+    
+    Parameters:
+    x (array-like): Input features
+    y (array-like): Target values
+    x_new (array-like): New input features to predict
+    bandwidth (float): Kernel bandwidth parameter
+    
+    Returns:
+    array-like: Predicted values for x_new
+    """
+    x, y, x_new = map(np.asarray, (x, y, x_new))
+    
+    def gaussian_kernel(x):
+        return np.exp(-0.5 * x**2) / np.sqrt(2 * np.pi)
+    
+    y_pred = []
+    for x0 in x_new:
+        weights = gaussian_kernel((x - x0) / bandwidth)
+        y_pred.append(np.sum(weights * y) / np.sum(weights))
+    
+    return np.array(y_pred)
+
+def create_candlestick_chart(data, ticker, trigger_level=None, bandwidth=0.5):
     usd_based_tickers = {
         "CADUSD=X": "USDCAD=X",
         "JPYUSD=X": "USDJPY=X",
@@ -208,8 +233,17 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
                     low=data['Low'],
                     close=data['Close'])])
     
+    # Apply Nadaraya-Watson smoothing
+    x = np.arange(len(data))
+    y = data['Close'].values
+    x_new = np.linspace(0, len(data) - 1, num=len(data))
+    y_smooth = nadaraya_watson(x, y, x_new, bandwidth=bandwidth)
+    
+    # Add smoothed line to the chart
+    fig.add_trace(go.Scatter(x=data.index, y=y_smooth, mode='lines', name='Smoothed', line=dict(color='blue', width=2)))
+    
     fig.update_layout(
-        title=f"{display_ticker} - Hourly Candlestick Chart (Last 20 Days)",
+        title=f"{display_ticker} - Hourly Candlestick Chart with Nadaraya-Watson Smoothing (Last 20 Days)",
         xaxis_title="Date",
         yaxis_title="Price",
         height=700,
@@ -228,7 +262,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
             y0=trigger_level,
             x1=data.index[-1],
             y1=trigger_level,
-            line=dict(color="blue", width=2, dash="dash"),
+            line=dict(color="red", width=2, dash="dash"),
         )
         fig.add_annotation(
             x=data.index[-1],
@@ -237,7 +271,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
             showarrow=False,
             yshift=10,
             xshift=10,
-            font=dict(color="blue"),
+            font=dict(color="red"),
         )
     
     return fig
@@ -310,7 +344,10 @@ with col_candlestick:
                 except ValueError:
                     st.warning("Invalid trigger level. Please enter a valid number.")
             
-            fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
+            # Add a slider for bandwidth
+            bandwidth = st.slider("Smoothing Bandwidth", min_value=0.1, max_value=2.0, value=0.5, step=0.1)
+            
+            fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float, bandwidth)
             
             st.plotly_chart(fig_candlestick, use_container_width=True)
         else:
