@@ -254,7 +254,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None, bandwidth=3):
                     name='Candlesticks')])
     
     # Add fitted line
-    fig.add_trace(go.Scatter(x=data.index, y=fitted_values, mode='lines', name='NW Fitted', line=dict(color='blue', width=2)))
+    fig.add_trace(go.Scatter(x=data.index, y=fitted_values, mode='lines', name='NW Fitted', line=dict(color='gray', width=2)))
 
     # Add upper and lower envelopes
     fig.add_trace(go.Scatter(x=data.index, y=upper_envelope, mode='lines', name='Upper Envelope', line=dict(color='green', width=1, dash='dash')))
