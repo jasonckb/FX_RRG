@@ -4,19 +4,10 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from statsmodels.nonparametric.kernel_regression import KernelReg
 
 st.set_page_config(layout="wide", page_title="FX Relative Rotation Graph (RRG) Dashboard")
 
-st.warning("""
-    **Disclaimer:**
-    - This app is for educational purposes only and should not be considered as financial advice.
-    - We do not guarantee the accuracy of the data. The data source is Yahoo Finance, which may have limitations or inaccuracies.
-    - Always conduct your own research and consult with a qualified financial advisor before making any investment decisions.
-""")
-
-
-# Initialize session state variables
+# 初始化 session state 變量
 if 'new_pair_selected' not in st.session_state:
     st.session_state.new_pair_selected = False
 
@@ -180,11 +171,7 @@ def get_hourly_data(ticker):
     # Use the USD-based ticker if it's one of the special cases, otherwise use the original ticker
     download_ticker = usd_based_tickers.get(ticker, ticker)
     
-    try:
-        data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h", progress=False)
-    except Exception as e:
-        st.error(f"Error downloading data for {download_ticker}: {str(e)}")
-        return pd.DataFrame()
+    data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
     
     if data.empty:
         st.warning(f"No data available for {download_ticker}")
@@ -206,32 +193,7 @@ def get_hourly_data(ticker):
     
     return data
 
-def nadaraya_watson(x, y, x_new, bandwidth=0.5):
-    """
-    Nadaraya-Watson kernel regression
-    
-    Parameters:
-    x (array-like): Input features
-    y (array-like): Target values
-    x_new (array-like): New input features to predict
-    bandwidth (float): Kernel bandwidth parameter
-    
-    Returns:
-    array-like: Predicted values for x_new
-    """
-    x, y, x_new = map(np.asarray, (x, y, x_new))
-    
-    def gaussian_kernel(x):
-        return np.exp(-0.5 * x**2) / np.sqrt(2 * np.pi)
-    
-    y_pred = []
-    for x0 in x_new:
-        weights = gaussian_kernel((x - x0) / bandwidth)
-        y_pred.append(np.sum(weights * y) / np.sum(weights))
-    
-    return np.array(y_pred)
-
-def create_candlestick_chart(data, ticker, trigger_level=None, bandwidth=3):
+def create_candlestick_chart(data, ticker, trigger_level=None):
     usd_based_tickers = {
         "CADUSD=X": "USDCAD=X",
         "JPYUSD=X": "USDJPY=X",
@@ -240,36 +202,14 @@ def create_candlestick_chart(data, ticker, trigger_level=None, bandwidth=3):
     }
     display_ticker = usd_based_tickers.get(ticker, ticker)
     
-    # Apply Nadaraya-Watson kernel regression
-    X = np.arange(len(data))
-    model = KernelReg(endog=data['Close'].values, exog=X, var_type='c', reg_type='lc', bw=[bandwidth])
-    fitted_values, _ = model.fit()
-
-    # Calculate residuals and standard deviation
-    residuals = data['Close'].values - fitted_values
-    std_dev = 2 * np.std(residuals)
-
-    # Calculate upper and lower envelopes
-    upper_envelope = fitted_values + std_dev
-    lower_envelope = fitted_values - std_dev
-
-    # Create the candlestick chart
     fig = go.Figure(data=[go.Candlestick(x=data.index,
                     open=data['Open'],
                     high=data['High'],
                     low=data['Low'],
-                    close=data['Close'],
-                    name='Candlesticks')])
+                    close=data['Close'])])
     
-    # Add fitted line
-    fig.add_trace(go.Scatter(x=data.index, y=fitted_values, mode='lines', name='NW Fitted', line=dict(color='gray', width=2, dash='dash')))
-
-    # Add upper and lower envelopes
-    fig.add_trace(go.Scatter(x=data.index, y=upper_envelope, mode='lines', name='Upper Envelope', line=dict(color='green', width=1, dash='dash')))
-    fig.add_trace(go.Scatter(x=data.index, y=lower_envelope, mode='lines', name='Lower Envelope', line=dict(color='red', width=1, dash='dash')))
-
     fig.update_layout(
-        title=f"{display_ticker} - Hourly Candlestick Chart with Nadaraya-Watson Bands (Last 20 Days)",
+        title=f"{display_ticker} - Hourly Candlestick Chart (Last 20 Days)",
         xaxis_title="Date",
         yaxis_title="Price",
         height=700,
@@ -288,7 +228,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None, bandwidth=3):
             y0=trigger_level,
             x1=data.index[-1],
             y1=trigger_level,
-            line=dict(color="purple", width=2, dash="dash"),
+            line=dict(color="blue", width=2, dash="dash"),
         )
         fig.add_annotation(
             x=data.index[-1],
@@ -297,11 +237,10 @@ def create_candlestick_chart(data, ticker, trigger_level=None, bandwidth=3):
             showarrow=False,
             yshift=10,
             xshift=10,
-            font=dict(color="purple"),
+            font=dict(color="blue"),
         )
     
     return fig
-
 
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
@@ -371,10 +310,8 @@ with col_candlestick:
                 except ValueError:
                     st.warning("Invalid trigger level. Please enter a valid number.")
             
-            # Add a slider for bandwidth
-            bandwidth = st.slider("Smoothing Bandwidth", min_value=1, max_value=10, value=3, step=1)
+            fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
             
-            fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float, bandwidth)
             
             st.plotly_chart(fig_candlestick, use_container_width=True)
         else:
@@ -392,3 +329,14 @@ if st.checkbox("Show raw data"):
     st.write(fx_pairs)
     st.write("Benchmark:")
     st.write(benchmark)
+
+
+
+
+
+
+
+
+
+
+
