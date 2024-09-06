@@ -172,10 +172,11 @@ def get_hourly_data(ticker):
     # Use the USD-based ticker if it's one of the special cases, otherwise use the original ticker
     download_ticker = usd_based_tickers.get(ticker, ticker)
     
-    # Disable progress bar
-    yf.pdr_override()
-    
-    data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h", progress=False)
+    try:
+        data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h", progress=False)
+    except Exception as e:
+        st.error(f"Error downloading data for {download_ticker}: {str(e)}")
+        return pd.DataFrame()
     
     if data.empty:
         st.warning(f"No data available for {download_ticker}")
