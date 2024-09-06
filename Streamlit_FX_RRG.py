@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 st.set_page_config(layout="wide", page_title="FX Relative Rotation Graph (RRG) Dashboard")
 
-# 初始化 session state 變量
+# Initialize session state variables
 if 'new_pair_selected' not in st.session_state:
     st.session_state.new_pair_selected = False
 
@@ -312,7 +312,6 @@ with col_candlestick:
             
             fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
             
-            
             st.plotly_chart(fig_candlestick, use_container_width=True)
         else:
             st.write(f"No valid data available for {st.session_state.selected_pair}")
@@ -329,15 +328,3 @@ if st.checkbox("Show raw data"):
     st.write(fx_pairs)
     st.write("Benchmark:")
     st.write(benchmark)
-
-
-
-
-
-
-
-
-
-
-
-
