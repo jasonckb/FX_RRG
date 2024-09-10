@@ -77,21 +77,24 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
         rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
-    # Calculate dynamic range with padding based on tail_length
-    padding = 0.1
-    min_x = min(rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].min())
-    max_x = max(rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].max())
-    min_y = min(rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].min())
-    max_y = max(rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].max())
+    # Calculate dynamic range based on tail_length
+    min_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].min().min()
+    max_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].max().max()
+    min_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].min().min()
+    max_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].max().max()
 
+    # Add padding
+    padding = 0.1
     range_x = max_x - min_x
     range_y = max_y - min_y
-    
-    # Ensure the range includes 100 on both axes and add padding
-    min_x = min(min_x - range_x * padding, 100 - range_x * 0.5)
-    max_x = max(max_x + range_x * padding, 100 + range_x * 0.5)
-    min_y = min(min_y - range_y * padding, 100 - range_y * 0.5)
-    max_y = max(max_y + range_y * padding, 100 + range_y * 0.5)
+    min_x -= range_x * padding
+    max_x += range_x * padding
+    min_y -= range_y * padding
+    max_y += range_y * padding
+
+    # Determine quadrant centers
+    center_x = (min_x + max_x) / 2
+    center_y = (min_y + max_y) / 2
 
     fig = go.Figure()
 
@@ -99,9 +102,9 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     curve_colors = {"Lagging": "red", "Weakening": "orange", "Improving": "darkblue", "Leading": "darkgreen"}
 
     def get_quadrant(x, y):
-        if x < 100 and y < 100: return "Lagging"
-        elif x >= 100 and y < 100: return "Weakening"
-        elif x < 100 and y >= 100: return "Improving"
+        if x < center_x and y < center_y: return "Lagging"
+        elif x >= center_x and y < center_y: return "Weakening"
+        elif x < center_x and y >= center_y: return "Improving"
         else: return "Leading"
 
     for pair in fx_pairs:
@@ -147,12 +150,12 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         plot_bgcolor='white',
         showlegend=False,
         shapes=[
-            dict(type="rect", xref="x", yref="y", x0=min_x, y0=100, x1=100, y1=max_y, fillcolor="lightblue", opacity=0.35, line_width=0),
-            dict(type="rect", xref="x", yref="y", x0=100, y0=100, x1=max_x, y1=max_y, fillcolor="lightgreen", opacity=0.35, line_width=0),
-            dict(type="rect", xref="x", yref="y", x0=min_x, y0=min_y, x1=100, y1=100, fillcolor="pink", opacity=0.35, line_width=0),
-            dict(type="rect", xref="x", yref="y", x0=100, y0=min_y, x1=max_x, y1=100, fillcolor="lightyellow", opacity=0.35, line_width=0),
-            dict(type="line", xref="x", yref="y", x0=100, y0=min_y, x1=100, y1=max_y, line=dict(color="black", width=1)),
-            dict(type="line", xref="x", yref="y", x0=min_x, y0=100, x1=max_x, y1=100, line=dict(color="black", width=1)),
+            dict(type="rect", xref="x", yref="y", x0=min_x, y0=center_y, x1=center_x, y1=max_y, fillcolor="lightblue", opacity=0.35, line_width=0),
+            dict(type="rect", xref="x", yref="y", x0=center_x, y0=center_y, x1=max_x, y1=max_y, fillcolor="lightgreen", opacity=0.35, line_width=0),
+            dict(type="rect", xref="x", yref="y", x0=min_x, y0=min_y, x1=center_x, y1=center_y, fillcolor="pink", opacity=0.35, line_width=0),
+            dict(type="rect", xref="x", yref="y", x0=center_x, y0=min_y, x1=max_x, y1=center_y, fillcolor="lightyellow", opacity=0.35, line_width=0),
+            dict(type="line", xref="x", yref="y", x0=center_x, y0=min_y, x1=center_x, y1=max_y, line=dict(color="black", width=1)),
+            dict(type="line", xref="x", yref="y", x0=min_x, y0=center_y, x1=max_x, y1=center_y, line=dict(color="black", width=1)),
         ]
     )
 
