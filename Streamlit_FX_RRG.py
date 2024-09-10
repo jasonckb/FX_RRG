@@ -87,14 +87,24 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     padding = 0.1
     range_x = max_x - min_x
     range_y = max_y - min_y
-    min_x -= range_x * padding
-    max_x += range_x * padding
-    min_y -= range_y * padding
-    max_y += range_y * padding
-
-    # Determine quadrant centers
-    center_x = (min_x + max_x) / 2
-    center_y = (min_y + max_y) / 2
+    
+    if timeframe == "Hourly":
+        # For hourly, center around 100 and expand range
+        center_x = center_y = 100
+        range_x = max(range_x, 0.2)  # Ensure a minimum range
+        range_y = max(range_y, 0.2)
+        min_x = center_x - range_x * (1 + padding)
+        max_x = center_x + range_x * (1 + padding)
+        min_y = center_y - range_y * (1 + padding)
+        max_y = center_y + range_y * (1 + padding)
+    else:
+        # For other timeframes, use the calculated range
+        min_x -= range_x * padding
+        max_x += range_x * padding
+        min_y -= range_y * padding
+        max_y += range_y * padding
+        center_x = (min_x + max_x) / 2
+        center_y = (min_y + max_y) / 2
 
     fig = go.Figure()
 
