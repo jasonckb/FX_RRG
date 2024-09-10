@@ -77,20 +77,21 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
         rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
-    boundary_data = rrg_data.iloc[-10:]
-    
+    # Calculate dynamic range with padding
     padding = 0.1
-    min_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
-    max_x = boundary_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
-    min_y = boundary_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
-    max_y = boundary_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
+    min_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
+    max_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
+    min_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
+    max_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
 
     range_x = max_x - min_x
     range_y = max_y - min_y
-    min_x = max(min_x - range_x * padding, 60)
-    max_x = min(max_x + range_x * padding, 140)
-    min_y = max(min_y - range_y * padding, 70)
-    max_y = min(max_y + range_y * padding, 130)
+    
+    # Ensure the range includes 100 on both axes
+    min_x = min(min_x - range_x * padding, 100 - range_x * 0.5)
+    max_x = max(max_x + range_x * padding, 100 + range_x * 0.5)
+    min_y = min(min_y - range_y * padding, 100 - range_y * 0.5)
+    max_y = max(max_y + range_y * padding, 100 + range_y * 0.5)
 
     fig = go.Figure()
 
