@@ -77,17 +77,17 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
         rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
-    # Calculate dynamic range with padding
+    # Calculate dynamic range with padding based on tail_length
     padding = 0.1
-    min_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
-    max_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
-    min_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
-    max_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
+    min_x = min(rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].min())
+    max_x = max(rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].max())
+    min_y = min(rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].min())
+    max_y = max(rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].max())
 
     range_x = max_x - min_x
     range_y = max_y - min_y
     
-    # Ensure the range includes 100 on both axes
+    # Ensure the range includes 100 on both axes and add padding
     min_x = min(min_x - range_x * padding, 100 - range_x * 0.5)
     max_x = max(max_x + range_x * padding, 100 + range_x * 0.5)
     min_y = min(min_y - range_y * padding, 100 - range_y * 0.5)
