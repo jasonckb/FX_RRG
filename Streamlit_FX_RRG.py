@@ -77,26 +77,24 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
         rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
-    # Calculate dynamic range based on tail_length
-    min_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].min().min()
-    max_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].max().max()
-    min_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].min().min()
-    max_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].max().max()
+    # Calculate the min and max values for the plotted data points
+    plotted_data = rrg_data.iloc[-max(tail_length, 15):]
+    min_x = plotted_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
+    max_x = plotted_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
+    min_y = plotted_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
+    max_y = plotted_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
 
-    # Set range and center
-    center_x = center_y = 100
-    range_x = max(max_x - min_x, 0.5)  # Ensure a minimum range
-    range_y = max(max_y - min_y, 0.5)
+    padding = 0.05  # Increased padding
+    range_x = max_x - min_x
+    range_y = max_y - min_y
     
-    # Adjust range to be symmetric around 100
-    range_x = max(range_x, abs(100 - min_x), abs(max_x - 100)) * 2
-    range_y = max(range_y, abs(100 - min_y), abs(max_y - 100)) * 2
+    min_x -= range_x * padding
+    max_x += range_x * padding
+    min_y -= range_y * padding
+    max_y += range_y * padding
     
-    # Set axis limits
-    min_x = center_x - range_x / 2
-    max_x = center_x + range_x / 2
-    min_y = center_y - range_y / 2
-    max_y = center_y + range_y / 2
+    center_x = 100
+    center_y = 100
 
     fig = go.Figure()
 
@@ -128,11 +126,10 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 showlegend=False
             ))
             
-            # Determine text position based on momentum comparison
             if len(y_values) > 1:
                 text_position = "top center" if y_values.iloc[-1] > y_values.iloc[-2] else "bottom center"
             else:
-                text_position = "top center"  # Default to top if there's only one point
+                text_position = "top center"
             
             fig.add_trace(go.Scatter(
                 x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
