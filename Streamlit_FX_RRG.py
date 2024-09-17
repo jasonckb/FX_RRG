@@ -64,8 +64,6 @@ def get_fx_data(timeframe):
     return data, benchmark, fx_pairs, fx_names
 
 def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length):
-    tail_length = min(tail_length, 6)  # Limit tail length to 6
-    
     if timeframe == "Weekly":
         data_resampled = data.resample('W-FRI').last()
     elif timeframe == "Hourly":
@@ -80,29 +78,29 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
     # Calculate the min and max values for the plotted data points
-    plotted_data = rrg_data.iloc[-tail_length:]
+    plotted_data = rrg_data.iloc[-max(tail_length, 15):]
     min_x = plotted_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
     max_x = plotted_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
     min_y = plotted_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
     max_y = plotted_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
 
-    # Adjust the range to be symmetric around 100
-    range_x = max(abs(100 - min_x), abs(max_x - 100)) * 2
-    range_y = max(abs(100 - min_y), abs(max_y - 100)) * 2
-
-    center_x = center_y = 100
-    min_x = center_x - range_x / 2
-    max_x = center_x + range_x / 2
-    min_y = center_y - range_y / 2
-    max_y = center_y + range_y / 2
-
-    # Ensure a minimum range
-    if range_x < 0.5:
-        min_x = 99.75
-        max_x = 100.25
-    if range_y < 0.5:
-        min_y = 99.75
-        max_y = 100.25
+    padding = 0.05  # Increased padding
+    range_x = max_x - min_x
+    range_y = max_y - min_y
+    
+    min_x -= range_x * padding
+    max_x += range_x * padding
+    min_y -= range_y * padding
+    max_y += range_y * padding
+    
+    # Ensure the range includes 100 on both axes
+    min_x = min(min_x, 99.8)
+    max_x = max(max_x, 100.2)
+    min_y = min(min_y, 99.8)
+    max_y = max(max_y, 100.2)
+    
+    center_x = 100
+    center_y = 100
 
     fig = go.Figure()
 
