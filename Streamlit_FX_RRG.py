@@ -77,24 +77,36 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
         rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
-    # Calculate the min and max values for the plotted data points
-    plotted_data = rrg_data.iloc[-max(tail_length, 15):]
-    min_x = plotted_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
-    max_x = plotted_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
-    min_y = plotted_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
-    max_y = plotted_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
+    # Calculate dynamic range based on tail_length
+    min_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].min().min()
+    max_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].max().max()
+    min_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].min().min()
+    max_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].max().max()
 
-    padding = 0.05  # Increased padding
+    # Add padding
+    padding = 0.1
     range_x = max_x - min_x
     range_y = max_y - min_y
     
-    min_x -= range_x * padding
-    max_x += range_x * padding
-    min_y -= range_y * padding
-    max_y += range_y * padding
-    
-    center_x = 100
-    center_y = 100
+    if timeframe == "Hourly":
+        # For hourly, ensure a minimum range around 100
+        center_x = center_y = 100
+        min_range = 0.5  # Minimum range of 0.5 (i.e., 99.75 to 100.25)
+        range_x = max(range_x, min_range)
+        range_y = max(range_y, min_range)
+        min_x = center_x - range_x / 2
+        max_x = center_x + range_x / 2
+        min_y = center_y - range_y / 2
+        max_y = center_y + range_y / 2
+    else:
+        # For other timeframes, use the calculated range
+        min_x -= range_x * padding
+        max_x += range_x * padding
+        min_y -= range_y * padding
+        max_y += range_y * padding
+
+    center_x = (min_x + max_x) / 2
+    center_y = (min_y + max_y) / 2
 
     fig = go.Figure()
 
@@ -126,10 +138,11 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 showlegend=False
             ))
             
+            # Determine text position based on momentum comparison
             if len(y_values) > 1:
                 text_position = "top center" if y_values.iloc[-1] > y_values.iloc[-2] else "bottom center"
             else:
-                text_position = "top center"
+                text_position = "top center"  # Default to top if there's only one point
             
             fig.add_trace(go.Scatter(
                 x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
@@ -142,8 +155,8 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         title=f"FX Relative Rotation Graph (RRG) ({timeframe})",
         xaxis_title="RS-Ratio",
         yaxis_title="RS-Momentum",
-        width=800,
-        height=800,
+        width=700,
+        height=600,
         xaxis=dict(range=[min_x, max_x], title_font=dict(size=14)),
         yaxis=dict(range=[min_y, max_y], title_font=dict(size=14)),
         plot_bgcolor='white',
