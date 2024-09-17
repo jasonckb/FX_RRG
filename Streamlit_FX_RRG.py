@@ -64,6 +64,8 @@ def get_fx_data(timeframe):
     return data, benchmark, fx_pairs, fx_names
 
 def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length):
+    tail_length = min(tail_length, 6)  # Limit tail length to 6
+    
     if timeframe == "Weekly":
         data_resampled = data.resample('W-FRI').last()
     elif timeframe == "Hourly":
@@ -78,13 +80,13 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
     # Calculate the min and max values for the plotted data points
-    plotted_data = rrg_data.iloc[-max(tail_length, 15):]
+    plotted_data = rrg_data.iloc[-tail_length:]
     min_x = plotted_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
     max_x = plotted_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
     min_y = plotted_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
     max_y = plotted_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
 
-    padding = 0.05  # Increased padding
+    padding = 0.001  # Reduced padding for tighter view
     range_x = max_x - min_x
     range_y = max_y - min_y
     
@@ -164,93 +166,6 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     fig.add_annotation(x=min_x, y=max_y, text="改善", showarrow=False, font=label_font, xanchor="left", yanchor="top")
     fig.add_annotation(x=max_x, y=max_y, text="領先", showarrow=False, font=label_font, xanchor="right", yanchor="top")
 
-    return fig
-
-@st.cache_data
-def get_hourly_data(ticker):
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=20)
-    
-    # Map the original ticker to its USD-based version for CAD, JPY, CNY, CHF
-    usd_based_tickers = {
-        "CADUSD=X": "USDCAD=X",
-        "JPYUSD=X": "USDJPY=X",
-        "CNYUSD=X": "USDCNY=X",
-        "CHFUSD=X": "USDCHF=X"
-    }
-    
-    # Use the USD-based ticker if it's one of the special cases, otherwise use the original ticker
-    download_ticker = usd_based_tickers.get(ticker, ticker)
-    
-    data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
-    
-    if data.empty:
-        st.warning(f"No data available for {download_ticker}")
-        return pd.DataFrame()
-
-    if not isinstance(data.index, pd.DatetimeIndex):
-        data.index = pd.to_datetime(data.index)
-    
-    data = data.dropna()
-    data = data[data.index.dayofweek < 5]
-    
-    if data.empty:
-        st.warning(f"No valid data available for {download_ticker} after removing weekends and NaN values")
-        return pd.DataFrame()
-    
-    data = data.reset_index()
-    data['continuous_datetime'] = pd.date_range(start=data['Datetime'].min(), periods=len(data), freq='H')
-    data.set_index('continuous_datetime', inplace=True)
-    
-    return data
-
-def create_candlestick_chart(data, ticker, trigger_level=None):
-    usd_based_tickers = {
-        "CADUSD=X": "USDCAD=X",
-        "JPYUSD=X": "USDJPY=X",
-        "CNYUSD=X": "USDCNY=X",
-        "CHFUSD=X": "USDCHF=X"
-    }
-    display_ticker = usd_based_tickers.get(ticker, ticker)
-    
-    fig = go.Figure(data=[go.Candlestick(x=data.index,
-                    open=data['Open'],
-                    high=data['High'],
-                    low=data['Low'],
-                    close=data['Close'])])
-    
-    fig.update_layout(
-        title=f"{display_ticker} - Hourly Candlestick Chart (Last 20 Days)",
-        xaxis_title="Date",
-        yaxis_title="Price",
-        height=700,
-        xaxis_rangeslider_visible=False,
-        xaxis=dict(
-            tickformat='%Y-%m-%d %H:%M',
-            tickmode='auto',
-            nticks=10,
-        )
-    )
-    
-    if trigger_level is not None:
-        fig.add_shape(
-            type="line",
-            x0=data.index[0],
-            y0=trigger_level,
-            x1=data.index[-1],
-            y1=trigger_level,
-            line=dict(color="blue", width=2, dash="dash"),
-        )
-        fig.add_annotation(
-            x=data.index[-1],
-            y=trigger_level,
-            text=f"Trigger: {trigger_level}",
-            showarrow=False,
-            yshift=10,
-            xshift=10,
-            font=dict(color="blue"),
-        )
-    
     return fig
 
 # Main Streamlit app
