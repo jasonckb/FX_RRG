@@ -83,30 +83,20 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     min_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].min().min()
     max_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].max().max()
 
-    # Add padding
-    padding = 0.1
-    range_x = max_x - min_x
-    range_y = max_y - min_y
+    # Set range and center
+    center_x = center_y = 100
+    range_x = max(max_x - min_x, 0.5)  # Ensure a minimum range
+    range_y = max(max_y - min_y, 0.5)
     
-    if timeframe == "Hourly":
-        # For hourly, ensure a minimum range around 100
-        center_x = center_y = 100
-        min_range = 0.5  # Minimum range of 0.5 (i.e., 99.75 to 100.25)
-        range_x = max(range_x, min_range)
-        range_y = max(range_y, min_range)
-        min_x = center_x - range_x / 2
-        max_x = center_x + range_x / 2
-        min_y = center_y - range_y / 2
-        max_y = center_y + range_y / 2
-    else:
-        # For other timeframes, use the calculated range
-        min_x -= range_x * padding
-        max_x += range_x * padding
-        min_y -= range_y * padding
-        max_y += range_y * padding
-
-    center_x = (min_x + max_x) / 2
-    center_y = (min_y + max_y) / 2
+    # Adjust range to be symmetric around 100
+    range_x = max(range_x, abs(100 - min_x), abs(max_x - 100)) * 2
+    range_y = max(range_y, abs(100 - min_y), abs(max_y - 100)) * 2
+    
+    # Set axis limits
+    min_x = center_x - range_x / 2
+    max_x = center_x + range_x / 2
+    min_y = center_y - range_y / 2
+    max_y = center_y + range_y / 2
 
     fig = go.Figure()
 
