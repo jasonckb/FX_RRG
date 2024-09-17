@@ -77,30 +77,34 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
         rrg_data[f"{pair}_RS-Ratio"] = rs_ratio
         rrg_data[f"{pair}_RS-Momentum"] = rs_momentum
 
-    # Calculate the min and max values for the plotted data points
-    plotted_data = rrg_data.iloc[-max(tail_length, 15):]
-    min_x = plotted_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].min().min()
-    max_x = plotted_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].max().max()
-    min_y = plotted_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].min().min()
-    max_y = plotted_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].max().max()
+    # Calculate dynamic range based on tail_length
+    min_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].min().min()
+    max_x = rrg_data[[f"{pair}_RS-Ratio" for pair in fx_pairs]].iloc[-tail_length:].max().max()
+    min_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].min().min()
+    max_y = rrg_data[[f"{pair}_RS-Momentum" for pair in fx_pairs]].iloc[-tail_length:].max().max()
 
-    padding = 0.05  # Increased padding
+    # Add padding
+    padding = 0.1
     range_x = max_x - min_x
     range_y = max_y - min_y
     
-    min_x -= range_x * padding
-    max_x += range_x * padding
-    min_y -= range_y * padding
-    max_y += range_y * padding
-    
-    # Ensure the range includes 100 on both axes
-    min_x = min(min_x, 99.8)
-    max_x = max(max_x, 100.2)
-    min_y = min(min_y, 99.8)
-    max_y = max(max_y, 100.2)
-    
-    center_x = 100
-    center_y = 100
+    if timeframe == "Hourly":
+        # For hourly, center around 100 and expand range
+        center_x = center_y = 100
+        range_x = max(range_x, 0.2)  # Ensure a minimum range
+        range_y = max(range_y, 0.2)
+        min_x = center_x - range_x * (1 + padding)
+        max_x = center_x + range_x * (1 + padding)
+        min_y = center_y - range_y * (1 + padding)
+        max_y = center_y + range_y * (1 + padding)
+    else:
+        # For other timeframes, use the calculated range
+        min_x -= range_x * padding
+        max_x += range_x * padding
+        min_y -= range_y * padding
+        max_y += range_y * padding
+        center_x = (min_x + max_x) / 2
+        center_y = (min_y + max_y) / 2
 
     fig = go.Figure()
 
@@ -132,10 +136,11 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
                 showlegend=False
             ))
             
+            # Determine text position based on momentum comparison
             if len(y_values) > 1:
                 text_position = "top center" if y_values.iloc[-1] > y_values.iloc[-2] else "bottom center"
             else:
-                text_position = "top center"
+                text_position = "top center"  # Default to top if there's only one point
             
             fig.add_trace(go.Scatter(
                 x=[x_values.iloc[-1]], y=[y_values.iloc[-1]], mode='markers+text',
@@ -170,6 +175,93 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
     fig.add_annotation(x=min_x, y=max_y, text="改善", showarrow=False, font=label_font, xanchor="left", yanchor="top")
     fig.add_annotation(x=max_x, y=max_y, text="領先", showarrow=False, font=label_font, xanchor="right", yanchor="top")
 
+    return fig
+
+@st.cache_data
+def get_hourly_data(ticker):
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=20)
+    
+    # Map the original ticker to its USD-based version for CAD, JPY, CNY, CHF
+    usd_based_tickers = {
+        "CADUSD=X": "USDCAD=X",
+        "JPYUSD=X": "USDJPY=X",
+        "CNYUSD=X": "USDCNY=X",
+        "CHFUSD=X": "USDCHF=X"
+    }
+    
+    # Use the USD-based ticker if it's one of the special cases, otherwise use the original ticker
+    download_ticker = usd_based_tickers.get(ticker, ticker)
+    
+    data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
+    
+    if data.empty:
+        st.warning(f"No data available for {download_ticker}")
+        return pd.DataFrame()
+
+    if not isinstance(data.index, pd.DatetimeIndex):
+        data.index = pd.to_datetime(data.index)
+    
+    data = data.dropna()
+    data = data[data.index.dayofweek < 5]
+    
+    if data.empty:
+        st.warning(f"No valid data available for {download_ticker} after removing weekends and NaN values")
+        return pd.DataFrame()
+    
+    data = data.reset_index()
+    data['continuous_datetime'] = pd.date_range(start=data['Datetime'].min(), periods=len(data), freq='H')
+    data.set_index('continuous_datetime', inplace=True)
+    
+    return data
+
+def create_candlestick_chart(data, ticker, trigger_level=None):
+    usd_based_tickers = {
+        "CADUSD=X": "USDCAD=X",
+        "JPYUSD=X": "USDJPY=X",
+        "CNYUSD=X": "USDCNY=X",
+        "CHFUSD=X": "USDCHF=X"
+    }
+    display_ticker = usd_based_tickers.get(ticker, ticker)
+    
+    fig = go.Figure(data=[go.Candlestick(x=data.index,
+                    open=data['Open'],
+                    high=data['High'],
+                    low=data['Low'],
+                    close=data['Close'])])
+    
+    fig.update_layout(
+        title=f"{display_ticker} - Hourly Candlestick Chart (Last 20 Days)",
+        xaxis_title="Date",
+        yaxis_title="Price",
+        height=700,
+        xaxis_rangeslider_visible=False,
+        xaxis=dict(
+            tickformat='%Y-%m-%d %H:%M',
+            tickmode='auto',
+            nticks=10,
+        )
+    )
+    
+    if trigger_level is not None:
+        fig.add_shape(
+            type="line",
+            x0=data.index[0],
+            y0=trigger_level,
+            x1=data.index[-1],
+            y1=trigger_level,
+            line=dict(color="blue", width=2, dash="dash"),
+        )
+        fig.add_annotation(
+            x=data.index[-1],
+            y=trigger_level,
+            text=f"Trigger: {trigger_level}",
+            showarrow=False,
+            yshift=10,
+            xshift=10,
+            font=dict(color="blue"),
+        )
+    
     return fig
 
 # Main Streamlit app
@@ -259,6 +351,16 @@ if st.checkbox("Show raw data"):
     st.write(fx_pairs)
     st.write("Benchmark:")
     st.write(benchmark)
+
+
+
+
+
+
+
+
+
+
 
 
 
