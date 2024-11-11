@@ -206,39 +206,51 @@ def get_hourly_data(ticker):
     return data
 
 def create_candlestick_chart(data, ticker, trigger_level=None):
-    # Create the candlestick chart
-    fig = go.Figure(data=[go.Candlestick(
-        x=data.index,
-        open=data['Open'],
-        high=data['High'],
-        low=data['Low'],
-        close=data['Close']
-    )])
+    usd_based_tickers = {
+        "CADUSD=X": "USDCAD=X",
+        "JPYUSD=X": "USDJPY=X",
+        "CNYUSD=X": "USDCNY=X",
+        "CHFUSD=X": "USDCHF=X"
+    }
+    display_ticker = usd_based_tickers.get(ticker, ticker)
     
-    # Update layout
+    fig = go.Figure(data=[go.Candlestick(x=data.index,
+                    open=data['Open'],
+                    high=data['High'],
+                    low=data['Low'],
+                    close=data['Close'])])
+    
     fig.update_layout(
-        title=dict(
-            text=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
-            x=0.5
-        ),
+        title=f"{display_ticker} - Hourly Candlestick Chart (Last 20 Days)",
+        xaxis_title="Date",
         yaxis_title="Price",
-        height=600,
-        xaxis_rangeslider_visible=False
+        height=700,
+        xaxis_rangeslider_visible=False,
+        xaxis=dict(
+            tickformat='%Y-%m-%d %H:%M',
+            tickmode='auto',
+            nticks=10,
+        )
     )
     
-    # Add trigger level if specified
-    if trigger_level and trigger_level != "":
-        try:
-            trigger_value = float(trigger_level)
-            fig.add_hline(
-                y=trigger_value,
-                line_dash="dash",
-                line_color="blue",
-                annotation_text=f"Trigger: {trigger_value}",
-                annotation_position="right"
-            )
-        except ValueError:
-            st.warning("Invalid trigger level value")
+    if trigger_level is not None:
+        fig.add_shape(
+            type="line",
+            x0=data.index[0],
+            y0=trigger_level,
+            x1=data.index[-1],
+            y1=trigger_level,
+            line=dict(color="blue", width=2, dash="dash"),
+        )
+        fig.add_annotation(
+            x=data.index[-1],
+            y=trigger_level,
+            text=f"Trigger: {trigger_level}",
+            showarrow=False,
+            yshift=10,
+            xshift=10,
+            font=dict(color="blue"),
+        )
     
     return fig
 
@@ -302,6 +314,7 @@ with col_candlestick:
         pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
         if not pair_hourly_data.empty:
+            # Convert trigger_level to float if it's not empty
             trigger_level_float = None
             if st.session_state.trigger_level:
                 try:
@@ -309,14 +322,12 @@ with col_candlestick:
                 except ValueError:
                     st.warning("Invalid trigger level. Please enter a valid number.")
             
-            fig_candlestick = create_candlestick_chart(
-                pair_hourly_data, 
-                st.session_state.selected_pair, 
-                st.session_state.trigger_level
-            )
+            fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
             
             if fig_candlestick:
                 st.plotly_chart(fig_candlestick, use_container_width=True)
+            else:
+                st.warning("Unable to create candlestick chart with the available data")
         else:
             st.warning(f"No valid data available for {st.session_state.selected_pair}")
     else:
