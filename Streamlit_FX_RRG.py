@@ -229,18 +229,53 @@ if st.button("Test Data Download"):
         st.write("First few rows of data:")
         st.write(test_data.head())
 
-#Define the line chart function
 def create_line_chart(data, ticker, trigger_level=None):
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
+    usd_based_tickers = {
+        "CADUSD=X": "USDCAD=X",
+        "JPYUSD=X": "USDJPY=X",
+        "CNYUSD=X": "USDCNY=X",
+        "CHFUSD=X": "USDCHF=X"
+    }
+    display_ticker = usd_based_tickers.get(ticker, ticker)
+    
+    fig = go.Figure(data=[go.Scatter(
         x=data.index,
-        y=data.values,
+        y=data['Close'],
         mode='lines',
         name='Price'
-    ))
+    )])
     
-    if trigger_level:
-        fig.add_hline(y=float(trigger_level))
+    fig.update_layout(
+        title=f"{display_ticker} - Hourly Price Chart (Last 20 Days)",
+        xaxis_title="Date",
+        yaxis_title="Price",
+        height=700,
+        xaxis_rangeslider_visible=False,
+        xaxis=dict(
+            tickformat='%Y-%m-%d %H:%M',
+            tickmode='auto',
+            nticks=10,
+        )
+    )
+    
+    if trigger_level is not None:
+        fig.add_shape(
+            type="line",
+            x0=data.index[0],
+            y0=trigger_level,
+            x1=data.index[-1],
+            y1=trigger_level,
+            line=dict(color="blue", width=2, dash="dash"),
+        )
+        fig.add_annotation(
+            x=data.index[-1],
+            y=trigger_level,
+            text=f"Trigger: {trigger_level}",
+            showarrow=False,
+            yshift=10,
+            xshift=10,
+            font=dict(color="blue"),
+        )
     
     return fig
 
@@ -303,29 +338,27 @@ with col_hourly_rrg:
 
 with col_candlestick:
     if 'selected_pair' in st.session_state:
-        # Get data
-        data = yf.download(
-            st.session_state.selected_pair,
-            start=datetime.now() - timedelta(days=20),
-            end=datetime.now(),
-            interval="1h"
-        )
+        pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
-        if not data.empty:
-            # Debug print actual values
-            st.write("First few values:", data['Close'].head())
-            st.write("Last few values:", data['Close'].tail())
+        if not pair_hourly_data.empty:
+            trigger_level_float = None
+            if st.session_state.trigger_level:
+                try:
+                    trigger_level_float = float(st.session_state.trigger_level)
+                except ValueError:
+                    st.warning("Invalid trigger level. Please enter a valid number.")
             
-            # Create chart with just Close prices
             fig = create_line_chart(
-                data['Close'],
-                st.session_state.selected_pair,
-                st.session_state.trigger_level
+                pair_hourly_data, 
+                st.session_state.selected_pair, 
+                trigger_level_float
             )
             
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.write("No data available")
+            st.warning(f"No valid data available for {st.session_state.selected_pair}")
+    else:
+        st.write("Select an FX pair to view the price chart.")
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
     st.write("Daily Raw data:")
