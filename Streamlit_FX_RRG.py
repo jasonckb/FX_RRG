@@ -229,35 +229,28 @@ if st.button("Test Data Download"):
         st.write("First few rows of data:")
         st.write(test_data.head())
 
-def create_candlestick_chart(data, ticker, trigger_level=None):
-    # Debug print
-    print("Data received for candlestick chart:")
-    print(f"Shape: {data.shape}")
-    print(f"Columns: {data.columns}")
-    print(f"First few rows:")
-    print(data.head())
-    
-    # Create candlestick chart
-    fig = go.Figure(data=[go.Candlestick(
+def create_line_chart(data, ticker, trigger_level=None):
+    # Create the line chart
+    fig = go.Figure(data=[go.Scatter(
         x=data.index,
-        open=data['Open'],
-        high=data['High'],
-        low=data['Low'],
-        close=data['Close']
+        y=data,
+        mode='lines',
+        name='Price',
+        line=dict(color='blue', width=1.5)
     )])
-
+    
     # Update layout
     fig.update_layout(
-        title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
+        title=f"{ticker} - Hourly Price Chart (Last 20 Days)",
         xaxis_title="Date",
         yaxis_title="Price",
         height=700,
-        xaxis_rangeslider_visible=False,
         xaxis=dict(
             tickformat='%Y-%m-%d %H:%M',
             tickmode='auto',
             nticks=10,
-        )
+        ),
+        showlegend=False
     )
     
     # Add trigger level if specified
@@ -340,15 +333,28 @@ with col_hourly_rrg:
 
 with col_candlestick:
     if 'selected_pair' in st.session_state:
-        # Debug print
-        print(f"Selected pair: {st.session_state.selected_pair}")
+        # Get the hourly data (now just Close prices)
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=20)
         
-        pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
+        # Use the proper ticker mapping for inverse pairs
+        usd_based_tickers = {
+            "CADUSD=X": "USDCAD=X",
+            "JPYUSD=X": "USDJPY=X",
+            "CNYUSD=X": "USDCNY=X",
+            "CHFUSD=X": "USDCHF=X"
+        }
+        download_ticker = usd_based_tickers.get(st.session_state.selected_pair, st.session_state.selected_pair)
         
-        if not pair_hourly_data.empty:
-            # Debug print
-            print("Data loaded successfully")
+        # Download hourly data
+        data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
+        
+        if not data.empty:
+            # Handle inverse pairs
+            if st.session_state.selected_pair in usd_based_tickers:
+                data['Close'] = 1 / data['Close']
             
+            # Convert trigger_level to float if provided
             trigger_level_float = None
             if st.session_state.trigger_level:
                 try:
@@ -356,21 +362,19 @@ with col_candlestick:
                 except ValueError:
                     st.warning("Invalid trigger level. Please enter a valid number.")
             
-            fig_candlestick = create_candlestick_chart(
-                pair_hourly_data, 
+            # Create and display the line chart
+            fig_line = create_line_chart(
+                data['Close'], 
                 st.session_state.selected_pair, 
                 trigger_level_float
             )
             
-            if fig_candlestick:
-                st.plotly_chart(fig_candlestick, use_container_width=True)
-            else:
-                st.warning("Unable to create candlestick chart with the available data")
+            if fig_line:
+                st.plotly_chart(fig_line, use_container_width=True)
         else:
             st.warning(f"No valid data available for {st.session_state.selected_pair}")
     else:
-        st.write("Select an FX pair to view the candlestick chart.")
-
+        st.write("Select an FX pair to view the price chart.")
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
     st.write("Daily Raw data:")
