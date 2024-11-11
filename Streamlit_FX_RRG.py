@@ -359,8 +359,12 @@ with col_candlestick:
             if not data.empty:
                 # Fix multi-level columns if they exist
                 if isinstance(data.columns, pd.MultiIndex):
-                    # Select data for the current pair and flatten columns
                     data.columns = data.columns.get_level_values(0)
+                
+                # Clean data
+                data = data.dropna()  # Remove NaN values
+                data = data[data['Volume'] != 0]  # Remove zero volume periods
+                data = data[data.index.dayofweek < 5]  # Remove weekends
                 
                 # Calculate price range for scaling
                 price_min = min(data['Low'].min(), data['Close'].min())
@@ -416,8 +420,9 @@ with col_candlestick:
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Debug: show first few rows of data
+                # Debug info
                 with st.expander("Show data sample"):
+                    st.write(f"Number of data points: {len(data)}")
                     st.write("First few rows:")
                     st.write(data.head())
             else:
@@ -425,7 +430,6 @@ with col_candlestick:
         
         except Exception as e:
             st.error(f"Error: {str(e)}")
-            st.write("Data columns:", data.columns)  # Debug print
     else:
         st.write("Select an FX pair to view the candlestick chart.")
        
