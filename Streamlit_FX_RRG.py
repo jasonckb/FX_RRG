@@ -230,6 +230,12 @@ if st.button("Test Data Download"):
         st.write(test_data.head())
 
 def create_line_chart(data, ticker, trigger_level=None):
+    # Calculate price range for better y-axis scaling
+    price_min = data.min()
+    price_max = data.max()
+    price_range = price_max - price_min
+    padding = price_range * 0.05
+    
     # Create the line chart
     fig = go.Figure(data=[go.Scatter(
         x=data.index,
@@ -239,19 +245,29 @@ def create_line_chart(data, ticker, trigger_level=None):
         line=dict(color='blue', width=1.5)
     )])
     
-    # Update layout
+    # Update layout with better scaling
     fig.update_layout(
         title=f"{ticker} - Hourly Price Chart (Last 20 Days)",
         xaxis_title="Date",
         yaxis_title="Price",
         height=700,
+        yaxis=dict(
+            range=[price_min - padding, price_max + padding],
+            tickformat='.4f'  # Show 4 decimal places for FX prices
+        ),
         xaxis=dict(
             tickformat='%Y-%m-%d %H:%M',
             tickmode='auto',
             nticks=10,
         ),
-        showlegend=False
+        showlegend=False,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
     )
+    
+    # Add grid lines
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightGrey')
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGrey')
     
     # Add trigger level if specified
     if trigger_level is not None:
@@ -261,12 +277,12 @@ def create_line_chart(data, ticker, trigger_level=None):
             y0=trigger_level,
             x1=data.index[-1],
             y1=trigger_level,
-            line=dict(color="blue", width=2, dash="dash"),
+            line=dict(color="blue", width=1.5, dash="dash"),
         )
         fig.add_annotation(
             x=data.index[-1],
             y=trigger_level,
-            text=f"Trigger: {trigger_level}",
+            text=f"Trigger: {trigger_level:.4f}",
             showarrow=False,
             yshift=10,
             xshift=10,
@@ -333,11 +349,11 @@ with col_hourly_rrg:
 
 with col_candlestick:
     if 'selected_pair' in st.session_state:
-        # Get the hourly data (now just Close prices)
+        # Get the hourly data
         end_date = datetime.now()
         start_date = end_date - timedelta(days=20)
         
-        # Use the proper ticker mapping for inverse pairs
+        # Map for inverse pairs
         usd_based_tickers = {
             "CADUSD=X": "USDCAD=X",
             "JPYUSD=X": "USDJPY=X",
@@ -346,33 +362,44 @@ with col_candlestick:
         }
         download_ticker = usd_based_tickers.get(st.session_state.selected_pair, st.session_state.selected_pair)
         
-        # Download hourly data
-        data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
-        
-        if not data.empty:
-            # Handle inverse pairs
-            if st.session_state.selected_pair in usd_based_tickers:
-                data['Close'] = 1 / data['Close']
+        try:
+            # Download data
+            data = yf.download(download_ticker, 
+                             start=start_date, 
+                             end=end_date, 
+                             interval="1h", 
+                             progress=False)
             
-            # Convert trigger_level to float if provided
-            trigger_level_float = None
-            if st.session_state.trigger_level:
-                try:
-                    trigger_level_float = float(st.session_state.trigger_level)
-                except ValueError:
-                    st.warning("Invalid trigger level. Please enter a valid number.")
-            
-            # Create and display the line chart
-            fig_line = create_line_chart(
-                data['Close'], 
-                st.session_state.selected_pair, 
-                trigger_level_float
-            )
-            
-            if fig_line:
-                st.plotly_chart(fig_line, use_container_width=True)
-        else:
-            st.warning(f"No valid data available for {st.session_state.selected_pair}")
+            if not data.empty:
+                # Clean the data
+                data = data.dropna()  # Remove any NaN values
+                
+                # Handle inverse pairs
+                if st.session_state.selected_pair in usd_based_tickers:
+                    data['Close'] = 1 / data['Close']
+                
+                # Convert trigger level to float if provided
+                trigger_level_float = None
+                if st.session_state.trigger_level:
+                    try:
+                        trigger_level_float = float(st.session_state.trigger_level)
+                    except ValueError:
+                        st.warning("Invalid trigger level. Please enter a valid number.")
+                
+                # Create and display the line chart
+                fig_line = create_line_chart(
+                    data['Close'], 
+                    st.session_state.selected_pair, 
+                    trigger_level_float
+                )
+                
+                if fig_line:
+                    st.plotly_chart(fig_line, use_container_width=True)
+            else:
+                st.warning(f"No valid data available for {st.session_state.selected_pair}")
+                
+        except Exception as e:
+            st.error(f"Error loading data: {str(e)}")
     else:
         st.write("Select an FX pair to view the price chart.")
 # Show raw data if checkbox is selected
