@@ -230,40 +230,47 @@ if st.button("Test Data Download"):
         st.write(test_data.head())
 
 def create_line_chart(data, ticker, trigger_level=None):
-    print("Data before plotting:", data.head())  # Debug print
-    
-    # Basic line chart with minimal complexity
     fig = go.Figure()
     
-    # Add price line
+    # Just plot the line with data values
     fig.add_trace(go.Scatter(
-        x=data.index,
-        y=data,
+        x=list(range(len(data))),  # Use simple index numbers for x-axis
+        y=data.values,             # Use just the values for y-axis
         mode='lines',
-        line=dict(color='blue', width=1)
+        name='Price'
     ))
     
-    # Basic layout
-    fig.update_layout(
-        title=f"{ticker} - Hourly Price Chart (Last 20 Days)",
-        xaxis_title="Date",
-        yaxis_title="Price",
-        height=700,
-        showlegend=False
-    )
-    
-    # Add trigger level
     if trigger_level:
-        fig.add_hline(
-            y=trigger_level,
-            line_dash="dash",
-            line_color="blue",
-            annotation_text=f"Trigger: {trigger_level}",
-            annotation_position="right"
-        )
+        fig.add_hline(y=float(trigger_level))
     
     return fig
 
+# Main app section:
+with col_candlestick:
+    if 'selected_pair' in st.session_state:
+        # Get data
+        data = yf.download(
+            st.session_state.selected_pair,
+            start=datetime.now() - timedelta(days=20),
+            end=datetime.now(),
+            interval="1h"
+        )
+        
+        if not data.empty:
+            # Debug print actual values
+            st.write("First few values:", data['Close'].head())
+            st.write("Last few values:", data['Close'].tail())
+            
+            # Create chart with just Close prices
+            fig = create_line_chart(
+                data['Close'],
+                st.session_state.selected_pair,
+                st.session_state.trigger_level
+            )
+            
+            st.plotly_chart(fig)
+        else:
+            st.write("No data available")
 
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
