@@ -230,7 +230,9 @@ if st.button("Test Data Download"):
         st.write(test_data.head())
 
 def create_line_chart(data, ticker, trigger_level=None):
-    # Create the line chart with minimum margin
+    print("Data before plotting:", data.head())  # Debug print
+    
+    # Basic line chart with minimal complexity
     fig = go.Figure()
     
     # Add price line
@@ -238,79 +240,30 @@ def create_line_chart(data, ticker, trigger_level=None):
         x=data.index,
         y=data,
         mode='lines',
-        name='Price',
-        line=dict(color='black', width=1)
+        line=dict(color='blue', width=1)
     ))
     
-    # Calculate price range
-    price_min = data.min()
-    price_max = data.max()
-    padding = (price_max - price_min) * 0.1
-    y_min = price_min - padding
-    y_max = price_max + padding
-    
-    # Update layout
+    # Basic layout
     fig.update_layout(
         title=f"{ticker} - Hourly Price Chart (Last 20 Days)",
+        xaxis_title="Date",
+        yaxis_title="Price",
         height=700,
-        plot_bgcolor='white',
-        showlegend=False,
-        margin=dict(l=50, r=50, t=50, b=50),  # Minimal margins
-        
-        # Y-axis settings
-        yaxis=dict(
-            title="Price",
-            range=[y_min, y_max],
-            tickformat='.4f',
-            showgrid=True,
-            gridcolor='lightgrey',
-            showline=True,
-            linecolor='black',
-            ticks='outside',
-            ticklen=8,
-            tickwidth=1,
-            tickcolor='black',
-            mirror=True
-        ),
-        
-        # X-axis settings
-        xaxis=dict(
-            title="Date",
-            showgrid=True,
-            gridcolor='lightgrey',
-            tickangle=45,
-            showline=True,
-            linecolor='black',
-            ticks='outside',
-            ticklen=8,
-            tickwidth=1,
-            tickcolor='black',
-            mirror=True,
-            nticks=10
-        )
+        showlegend=False
     )
     
-    # Add trigger level if specified
-    if trigger_level is not None:
-        fig.add_shape(
-            type="line",
-            x0=data.index[0],
-            y0=trigger_level,
-            x1=data.index[-1],
-            y1=trigger_level,
-            line=dict(color="blue", width=1, dash="dash"),
-        )
-        fig.add_annotation(
-            x=data.index[-1],
+    # Add trigger level
+    if trigger_level:
+        fig.add_hline(
             y=trigger_level,
-            text=f"Trigger: {trigger_level:.4f}",
-            showarrow=False,
-            yshift=10,
-            xshift=10,
-            font=dict(color="blue"),
+            line_dash="dash",
+            line_color="blue",
+            annotation_text=f"Trigger: {trigger_level}",
+            annotation_position="right"
         )
     
     return fig
+
 
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
@@ -370,60 +323,39 @@ with col_hourly_rrg:
 
 with col_candlestick:
     if 'selected_pair' in st.session_state:
+        # Get data
         end_date = datetime.now()
         start_date = end_date - timedelta(days=20)
+        download_ticker = st.session_state.selected_pair
         
-        usd_based_tickers = {
-            "CADUSD=X": "USDCAD=X",
-            "JPYUSD=X": "USDJPY=X",
-            "CNYUSD=X": "USDCNY=X",
-            "CHFUSD=X": "USDCHF=X"
-        }
-        download_ticker = usd_based_tickers.get(st.session_state.selected_pair, st.session_state.selected_pair)
+        # Get data
+        data = yf.download(download_ticker, 
+                          start=start_date, 
+                          end=end_date, 
+                          interval="1h")
         
-        try:
-            data = yf.download(
-                download_ticker, 
-                start=start_date, 
-                end=end_date, 
-                interval="1h",
-                progress=False
-            )
+        if not data.empty:
+            # Get Close prices only
+            prices = data['Close']
             
-            if not data.empty:
-                data = data.dropna()
-                data = data[data.index.dayofweek < 5]  # Remove weekends
-                
-                if st.session_state.selected_pair in usd_based_tickers:
-                    data['Close'] = 1 / data['Close']
-                
-                # Add debug info but make it collapsible
-                with st.expander("Debug Info"):
-                    st.write(f"Data points: {len(data)}")
-                    st.write(f"Date range: {data.index.min()} to {data.index.max()}")
-                
-                trigger_level_float = None
-                if st.session_state.trigger_level:
-                    try:
-                        trigger_level_float = float(st.session_state.trigger_level)
-                    except ValueError:
-                        st.warning("Invalid trigger level. Please enter a valid number.")
-                
-                fig_line = create_line_chart(
-                    data['Close'], 
-                    st.session_state.selected_pair, 
-                    trigger_level_float
-                )
-                
-                if fig_line:
-                    st.plotly_chart(fig_line, use_container_width=True)
-            else:
-                st.warning(f"No valid data available for {st.session_state.selected_pair}")
-                
-        except Exception as e:
-            st.error(f"Error loading data: {str(e)}")
-    else:
-        st.write("Select an FX pair to view the price chart.")
+            # Debug prints
+            st.write(f"Data points: {len(prices)}")
+            st.write(f"Date range: {prices.index.min()} to {prices.index.max()}")
+            
+            # Handle trigger level
+            trigger_level_float = None
+            if st.session_state.trigger_level:
+                try:
+                    trigger_level_float = float(st.session_state.trigger_level)
+                except ValueError:
+                    st.warning("Invalid trigger level")
+            
+            # Create and show chart
+            fig = create_line_chart(prices, st.session_state.selected_pair, trigger_level_float)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning(f"No data available for {st.session_state.selected_pair}")
+           
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
     st.write("Daily Raw data:")
