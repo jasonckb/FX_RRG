@@ -347,6 +347,7 @@ with col_candlestick:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=20)
             
+            # Get data
             data = yf.download(
                 st.session_state.selected_pair,
                 start=start_date,
@@ -355,28 +356,31 @@ with col_candlestick:
                 progress=False
             )
             
-            st.write(f"Selected pair for chart: {st.session_state.selected_pair}")
-            st.write(f"Data shape: {data.shape}")
-            
             if not data.empty:
-                # Calculate price range for better y-axis scaling
-                price_min = data['Close'].min()
-                price_max = data['Close'].max()
+                # Fix multi-level columns if they exist
+                if isinstance(data.columns, pd.MultiIndex):
+                    # Select data for the current pair and flatten columns
+                    data.columns = data.columns.get_level_values(0)
+                
+                # Calculate price range for scaling
+                price_min = min(data['Low'].min(), data['Close'].min())
+                price_max = max(data['High'].max(), data['Close'].max())
                 padding = (price_max - price_min) * 0.05
                 
-                fig = go.Figure()
-                
-                # Add price line
-                fig.add_trace(go.Scatter(
+                # Create candlestick chart
+                fig = go.Figure(data=[go.Candlestick(
                     x=data.index,
-                    y=data['Close'],
-                    mode='lines',
-                    line=dict(color='blue', width=1)
-                ))
+                    open=data['Open'],
+                    high=data['High'],
+                    low=data['Low'],
+                    close=data['Close'],
+                    increasing_line_color='red',
+                    decreasing_line_color='green'
+                )])
                 
-                # Update layout with fixed y-axis range
+                # Update layout
                 fig.update_layout(
-                    title=f"{st.session_state.selected_pair} - Hourly Price Chart",
+                    title=f"{st.session_state.selected_pair} - Hourly Candlestick Chart",
                     yaxis=dict(
                         title="Price",
                         range=[price_min - padding, price_max + padding],
@@ -421,8 +425,9 @@ with col_candlestick:
         
         except Exception as e:
             st.error(f"Error: {str(e)}")
+            st.write("Data columns:", data.columns)  # Debug print
     else:
-        st.write("Select an FX pair to view the price chart.")
+        st.write("Select an FX pair to view the candlestick chart.")
        
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
