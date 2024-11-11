@@ -238,6 +238,8 @@ def create_line_chart(data, ticker, trigger_level=None):
     price_max = data.max()
     price_range = price_max - price_min
     padding = price_range * 0.05
+    y_min = price_min - padding
+    y_max = price_max + padding
     
     # Create the line chart
     fig = go.Figure(data=[go.Scatter(
@@ -248,30 +250,39 @@ def create_line_chart(data, ticker, trigger_level=None):
         line=dict(color='blue', width=1.5)
     )])
     
-    # Update layout
+    # Update layout with fixed axis properties
     fig.update_layout(
         title=f"{ticker} - Hourly Price Chart (Last 20 Days)",
         xaxis_title="Date",
         yaxis_title="Price",
         height=700,
         yaxis=dict(
-            range=[price_min - padding, price_max + padding],
+            range=[y_min, y_max],
             tickformat='.4f',  # 4 decimal places for FX
             gridcolor='LightGrey',
-            showgrid=True
+            showgrid=True,
+            zeroline=True,
+            showline=True,
+            showticklabels=True,
+            tickmode='auto',
+            nticks=10
         ),
         xaxis=dict(
             type='date',
-            tickformat='%m-%d %H:%M',  # Simplified date format
-            dtick=86400000.0,  # Show one tick per day
+            tickformat='%m-%d %H:%M',
+            tickmode='auto',
+            nticks=12,
             tickangle=45,
             gridcolor='LightGrey',
-            showgrid=True
+            showgrid=True,
+            zeroline=True,
+            showline=True,
+            showticklabels=True
         ),
         showlegend=False,
         plot_bgcolor='white',
         paper_bgcolor='white',
-        margin=dict(b=100)  # Add bottom margin for date labels
+        margin=dict(l=80, r=50, t=50, b=80)  # Increased margins for labels
     )
     
     # Add trigger level if specified
@@ -293,6 +304,22 @@ def create_line_chart(data, ticker, trigger_level=None):
             xshift=10,
             font=dict(color="blue"),
         )
+    
+    # Update axes lines
+    fig.update_xaxes(
+        mirror=True,
+        ticks='outside',
+        showline=True,
+        linecolor='black',
+        linewidth=1
+    )
+    fig.update_yaxes(
+        mirror=True,
+        ticks='outside',
+        showline=True,
+        linecolor='black',
+        linewidth=1
+    )
     
     return fig
 
@@ -354,11 +381,9 @@ with col_hourly_rrg:
 
 with col_candlestick:
     if 'selected_pair' in st.session_state:
-        # Calculate date range
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=20)  # Last 20 days
+        start_date = end_date - timedelta(days=20)
         
-        # Handle inverse pairs
         usd_based_tickers = {
             "CADUSD=X": "USDCAD=X",
             "JPYUSD=X": "USDJPY=X",
@@ -368,7 +393,6 @@ with col_candlestick:
         download_ticker = usd_based_tickers.get(st.session_state.selected_pair, st.session_state.selected_pair)
         
         try:
-            # Download data
             data = yf.download(
                 download_ticker, 
                 start=start_date, 
@@ -378,21 +402,15 @@ with col_candlestick:
             )
             
             if not data.empty:
-                # Clean the data
                 data = data.dropna()
+                data = data[data.index.dayofweek < 5]  # Remove weekends
                 
-                # Remove weekends
-                data = data[data.index.dayofweek < 5]
-                
-                # Handle inverse pairs
                 if st.session_state.selected_pair in usd_based_tickers:
                     data['Close'] = 1 / data['Close']
                 
-                # Debug info
                 st.write(f"Data points: {len(data)}")
                 st.write(f"Date range: {data.index.min()} to {data.index.max()}")
                 
-                # Handle trigger level
                 trigger_level_float = None
                 if st.session_state.trigger_level:
                     try:
@@ -400,7 +418,6 @@ with col_candlestick:
                     except ValueError:
                         st.warning("Invalid trigger level. Please enter a valid number.")
                 
-                # Create and display the line chart
                 fig_line = create_line_chart(
                     data['Close'], 
                     st.session_state.selected_pair, 
