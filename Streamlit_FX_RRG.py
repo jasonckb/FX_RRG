@@ -229,13 +229,14 @@ if st.button("Test Data Download"):
         st.write("First few rows of data:")
         st.write(test_data.head())
 
+ Define the line chart function
 def create_line_chart(data, ticker, trigger_level=None):
     fig = go.Figure()
     
-    # Just plot the line with data values
+    # Plot the line
     fig.add_trace(go.Scatter(
-        x=list(range(len(data))),  # Use simple index numbers for x-axis
-        y=data.values,             # Use just the values for y-axis
+        x=data.index,
+        y=data.values,
         mode='lines',
         name='Price'
     ))
@@ -331,38 +332,28 @@ with col_hourly_rrg:
 with col_candlestick:
     if 'selected_pair' in st.session_state:
         # Get data
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=20)
-        download_ticker = st.session_state.selected_pair
-        
-        # Get data
-        data = yf.download(download_ticker, 
-                          start=start_date, 
-                          end=end_date, 
-                          interval="1h")
+        data = yf.download(
+            st.session_state.selected_pair,
+            start=datetime.now() - timedelta(days=20),
+            end=datetime.now(),
+            interval="1h"
+        )
         
         if not data.empty:
-            # Get Close prices only
-            prices = data['Close']
+            # Debug print actual values
+            st.write("First few values:", data['Close'].head())
+            st.write("Last few values:", data['Close'].tail())
             
-            # Debug prints
-            st.write(f"Data points: {len(prices)}")
-            st.write(f"Date range: {prices.index.min()} to {prices.index.max()}")
+            # Create chart with just Close prices
+            fig = create_line_chart(
+                data['Close'],
+                st.session_state.selected_pair,
+                st.session_state.trigger_level
+            )
             
-            # Handle trigger level
-            trigger_level_float = None
-            if st.session_state.trigger_level:
-                try:
-                    trigger_level_float = float(st.session_state.trigger_level)
-                except ValueError:
-                    st.warning("Invalid trigger level")
-            
-            # Create and show chart
-            fig = create_line_chart(prices, st.session_state.selected_pair, trigger_level_float)
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning(f"No data available for {st.session_state.selected_pair}")
-           
+            st.write("No data available")
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
     st.write("Daily Raw data:")
