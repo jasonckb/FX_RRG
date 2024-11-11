@@ -290,15 +290,20 @@ st.sidebar.header("FX Pairs")
 daily_data, benchmark, fx_pairs, fx_names = get_fx_data("Daily")
 hourly_data, _, _, _ = get_fx_data("Hourly")
 
-# Create 2 columns for FX pair buttons
+# Sidebar FX pair buttons
 col1, col2 = st.sidebar.columns(2)
 columns = [col1, col2]
 
+# Debug the selected pair
+st.sidebar.write("Current selected pair:", st.session_state.get('selected_pair', 'None'))
+
 for i, pair in enumerate(fx_pairs):
-    if columns[i % 2].button(fx_names.get(pair, pair)):
+    button_label = fx_names.get(pair, pair)
+    if columns[i % 2].button(button_label, key=f"btn_{pair}"):  # Add unique key
         st.session_state.selected_pair = pair
         st.session_state.trigger_level = ""  # Clear the trigger level input
-        st.rerun()  # Force a rerun of the app to update the state
+        st.rerun()
+
 
 # Trigger Level Input
 if 'trigger_level' not in st.session_state:
@@ -338,27 +343,78 @@ with col_hourly_rrg:
 
 with col_candlestick:
     if 'selected_pair' in st.session_state:
-        pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
+        # Debug print
+        st.write("Selected pair for chart:", st.session_state.selected_pair)
         
-        if not pair_hourly_data.empty:
-            trigger_level_float = None
-            if st.session_state.trigger_level:
-                try:
-                    trigger_level_float = float(st.session_state.trigger_level)
-                except ValueError:
-                    st.warning("Invalid trigger level. Please enter a valid number.")
-            
-            fig = create_line_chart(
-                pair_hourly_data, 
-                st.session_state.selected_pair, 
-                trigger_level_float
+        # Get hourly data for the selected pair
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=20)
+        
+        # Get data for selected pair
+        try:
+            data = yf.download(
+                st.session_state.selected_pair,
+                start=start_date,
+                end=end_date,
+                interval="1h",
+                progress=False
             )
             
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning(f"No valid data available for {st.session_state.selected_pair}")
+            # Debug data
+            st.write("Data shape:", data.shape)
+            
+            if not data.empty:
+                # Create the line chart
+                fig = go.Figure(data=[go.Scatter(
+                    x=data.index,
+                    y=data['Close'],
+                    mode='lines',
+                    name='Price',
+                    line=dict(color='blue', width=1)
+                )])
+                
+                # Update layout
+                fig.update_layout(
+                    title=f"{st.session_state.selected_pair} - Hourly Price Chart",
+                    xaxis_title="Date",
+                    yaxis_title="Price",
+                    height=700
+                )
+                
+                # Add trigger level if specified
+                if st.session_state.trigger_level:
+                    try:
+                        trigger_value = float(st.session_state.trigger_level)
+                        fig.add_shape(
+                            type="line",
+                            x0=data.index[0],
+                            y0=trigger_value,
+                            x1=data.index[-1],
+                            y1=trigger_value,
+                            line=dict(color="blue", width=2, dash="dash"),
+                        )
+                        fig.add_annotation(
+                            x=data.index[-1],
+                            y=trigger_value,
+                            text=f"Trigger: {trigger_value}",
+                            showarrow=False,
+                            yshift=10,
+                            xshift=10,
+                            font=dict(color="blue"),
+                        )
+                    except ValueError:
+                        st.warning("Invalid trigger level value")
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning(f"No data available for {st.session_state.selected_pair}")
+                
+        except Exception as e:
+            st.error(f"Error loading data: {str(e)}")
+            
     else:
         st.write("Select an FX pair to view the price chart.")
+       
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
     st.write("Daily Raw data:")
