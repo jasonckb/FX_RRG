@@ -244,28 +244,6 @@ def create_line_chart(data, ticker, trigger_level=None):
     
     return fig
 
-# Main app section:
-with col_candlestick:
-    if 'selected_pair' in st.session_state:
-        data = yf.download(
-            st.session_state.selected_pair,
-            start=datetime.now() - timedelta(days=20),
-            end=datetime.now(),
-            interval="1h"
-        )
-        
-        if not data.empty:
-            st.write("First few values:", data['Close'].head())
-            
-            fig = create_line_chart(
-                data['Close'],
-                st.session_state.selected_pair,
-                st.session_state.trigger_level
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.write("No data available")
 
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
