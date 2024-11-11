@@ -181,32 +181,53 @@ def get_hourly_data(ticker):
     # Use the USD-based ticker if it's one of the special cases
     download_ticker = usd_based_tickers.get(ticker, ticker)
     
-    # Download data with all required columns
-    data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
-    
-    # Debug print
-    print(f"Downloaded data columns: {data.columns}")
-    print(f"First few rows of data:")
-    print(data.head())
-    
-    if data.empty:
-        st.warning(f"No data available for {download_ticker}")
+    try:
+        # Get all OHLC data
+        data = yf.download(
+            download_ticker, 
+            start=start_date, 
+            end=end_date, 
+            interval="1h",
+            progress=False  # Disable progress bar
+        )  # By default, yf.download gets all OHLC columns
+        
+        if data.empty:
+            st.warning(f"No data available for {download_ticker}")
+            return pd.DataFrame()
+
+        # Ensure we have all required columns
+        required_columns = ['Open', 'High', 'Low', 'Close']
+        if not all(col in data.columns for col in required_columns):
+            st.warning(f"Missing required columns in data. Available columns: {data.columns}")
+            return pd.DataFrame()
+
+        # Handle datetime index
+        if not isinstance(data.index, pd.DatetimeIndex):
+            data.index = pd.to_datetime(data.index)
+        
+        # Remove weekends and NaN values
+        data = data.dropna()
+        data = data[data.index.dayofweek < 5]
+        
+        # Handle inverse pairs
+        if ticker in usd_based_tickers:
+            for col in ['Open', 'High', 'Low', 'Close']:
+                data[col] = 1 / data[col]
+        
+        return data
+        
+    except Exception as e:
+        st.error(f"Error downloading data: {str(e)}")
         return pd.DataFrame()
 
-    # Handle datetime index
-    if not isinstance(data.index, pd.DatetimeIndex):
-        data.index = pd.to_datetime(data.index)
-    
-    # Remove weekends and NaN values
-    data = data.dropna()
-    data = data[data.index.dayofweek < 5]
-    
-    # Handle inverse pairs
-    if ticker in usd_based_tickers:
-        for col in ['Open', 'High', 'Low', 'Close']:
-            data[col] = 1 / data[col]
-    
-    return data
+# Test the data structure (add this temporarily for debugging)
+if st.button("Test Data Download"):
+    test_ticker = "GBPUSD=X"  # or any other pair you want to test
+    test_data = get_hourly_data(test_ticker)
+    if not test_data.empty:
+        st.write("Available columns:", test_data.columns)
+        st.write("First few rows of data:")
+        st.write(test_data.head())
 
 def create_candlestick_chart(data, ticker, trigger_level=None):
     # Debug print
