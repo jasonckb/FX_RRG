@@ -338,6 +338,7 @@ with col_candlestick:
         else:
             st.warning(f"No valid data available for {st.session_state.selected_pair}")
     else:
+        st.write("Select an FX pair to view the candlestick chart.")
 
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
