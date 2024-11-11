@@ -228,10 +228,13 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
     )])
     
     # Calculate price range for better y-axis scaling
-    price_min = data['Low'].min()
-    price_max = data['High'].max()
+    price_min = float(data['Low'].min())
+    price_max = float(data['High'].max())
     price_range = price_max - price_min
     padding = price_range * 0.05
+    
+    # Determine tick format based on price range
+    tick_format = '.4f'  # Use 4 decimal places for all cases
     
     # Update layout with improved formatting
     fig.update_layout(
@@ -239,7 +242,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
         yaxis=dict(
             title="Price",
             range=[price_min - padding, price_max + padding],
-            tickformat='.4f' if price_max < 1 else '.4f',
+            tickformat=tick_format,
             gridcolor='lightgrey',
             showgrid=True
         ),
@@ -357,12 +360,6 @@ with col_candlestick:
                 st.plotly_chart(fig_candlestick, use_container_width=True)
             else:
                 st.warning("Unable to create candlestick chart with the available data")
-                
-            # Optional: Display data summary
-            if st.checkbox("Show data summary"):
-                st.write("Data range:", pair_hourly_data.index.min(), "to", pair_hourly_data.index.max())
-                st.write("Number of data points:", len(pair_hourly_data))
-                st.write("Price range:", f"{pair_hourly_data['Low'].min():.4f} to {pair_hourly_data['High'].max():.4f}")
         else:
             st.warning(f"No valid data available for {st.session_state.selected_pair}")
     else:
