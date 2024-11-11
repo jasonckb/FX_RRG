@@ -361,10 +361,14 @@ with col_candlestick:
                 if isinstance(data.columns, pd.MultiIndex):
                     data.columns = data.columns.get_level_values(0)
                 
-                # Clean data
-                data = data.dropna()  # Remove NaN values
-                data = data[data['Volume'] != 0]  # Remove zero volume periods
-                data = data[data.index.dayofweek < 5]  # Remove weekends
+                # Debug print
+                st.write("Before cleaning - Shape:", data.shape)
+                
+                # Minimal cleaning - only remove NaN values
+                data = data.dropna(subset=['Open', 'High', 'Low', 'Close'])
+                
+                # Debug print
+                st.write("After cleaning - Shape:", data.shape)
                 
                 # Calculate price range for scaling
                 price_min = min(data['Low'].min(), data['Close'].min())
@@ -397,7 +401,8 @@ with col_candlestick:
                         showgrid=True,
                         gridwidth=1,
                         gridcolor='LightGrey',
-                        rangeslider=dict(visible=False)
+                        rangeslider=dict(visible=False),
+                        type='date'
                     ),
                     height=700,
                     plot_bgcolor='white',
@@ -420,11 +425,11 @@ with col_candlestick:
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Debug info
+                # Show sample data
                 with st.expander("Show data sample"):
-                    st.write(f"Number of data points: {len(data)}")
                     st.write("First few rows:")
                     st.write(data.head())
+                    st.write("Data columns:", data.columns.tolist())
             else:
                 st.warning(f"No data available for {st.session_state.selected_pair}")
         
