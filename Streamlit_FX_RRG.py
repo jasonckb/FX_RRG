@@ -230,7 +230,10 @@ if st.button("Test Data Download"):
         st.write(test_data.head())
 
 def create_line_chart(data, ticker, trigger_level=None):
-    # Calculate price range for better y-axis scaling
+    # Sort index to ensure proper time sequence
+    data = data.sort_index()
+    
+    # Calculate price range for y-axis scaling
     price_min = data.min()
     price_max = data.max()
     price_range = price_max - price_min
@@ -245,7 +248,7 @@ def create_line_chart(data, ticker, trigger_level=None):
         line=dict(color='blue', width=1.5)
     )])
     
-    # Update layout with better scaling
+    # Update layout
     fig.update_layout(
         title=f"{ticker} - Hourly Price Chart (Last 20 Days)",
         xaxis_title="Date",
@@ -253,21 +256,23 @@ def create_line_chart(data, ticker, trigger_level=None):
         height=700,
         yaxis=dict(
             range=[price_min - padding, price_max + padding],
-            tickformat='.4f'  # Show 4 decimal places for FX prices
+            tickformat='.4f',  # 4 decimal places for FX
+            gridcolor='LightGrey',
+            showgrid=True
         ),
         xaxis=dict(
-            tickformat='%Y-%m-%d %H:%M',
-            tickmode='auto',
-            nticks=10,
+            type='date',
+            tickformat='%m-%d %H:%M',  # Simplified date format
+            dtick=86400000.0,  # Show one tick per day
+            tickangle=45,
+            gridcolor='LightGrey',
+            showgrid=True
         ),
         showlegend=False,
         plot_bgcolor='white',
         paper_bgcolor='white',
+        margin=dict(b=100)  # Add bottom margin for date labels
     )
-    
-    # Add grid lines
-    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightGrey')
-    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGrey')
     
     # Add trigger level if specified
     if trigger_level is not None:
@@ -349,11 +354,11 @@ with col_hourly_rrg:
 
 with col_candlestick:
     if 'selected_pair' in st.session_state:
-        # Get the hourly data
+        # Calculate date range
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=20)
+        start_date = end_date - timedelta(days=20)  # Last 20 days
         
-        # Map for inverse pairs
+        # Handle inverse pairs
         usd_based_tickers = {
             "CADUSD=X": "USDCAD=X",
             "JPYUSD=X": "USDJPY=X",
@@ -364,21 +369,30 @@ with col_candlestick:
         
         try:
             # Download data
-            data = yf.download(download_ticker, 
-                             start=start_date, 
-                             end=end_date, 
-                             interval="1h", 
-                             progress=False)
+            data = yf.download(
+                download_ticker, 
+                start=start_date, 
+                end=end_date, 
+                interval="1h",
+                progress=False
+            )
             
             if not data.empty:
                 # Clean the data
-                data = data.dropna()  # Remove any NaN values
+                data = data.dropna()
+                
+                # Remove weekends
+                data = data[data.index.dayofweek < 5]
                 
                 # Handle inverse pairs
                 if st.session_state.selected_pair in usd_based_tickers:
                     data['Close'] = 1 / data['Close']
                 
-                # Convert trigger level to float if provided
+                # Debug info
+                st.write(f"Data points: {len(data)}")
+                st.write(f"Date range: {data.index.min()} to {data.index.max()}")
+                
+                # Handle trigger level
                 trigger_level_float = None
                 if st.session_state.trigger_level:
                     try:
