@@ -208,13 +208,6 @@ def get_hourly_data(ticker):
 def create_candlestick_chart(data, ticker, trigger_level=None):
     if data.empty:
         return None
-        
-    # Convert the index to datetime if it's not already
-    if not isinstance(data.index, pd.DatetimeIndex):
-        data.index = pd.to_datetime(data.index)
-    
-    # Sort data by index to ensure proper plotting
-    data = data.sort_index()
     
     # Create the candlestick chart
     fig = go.Figure(data=[go.Candlestick(
@@ -227,32 +220,28 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
         decreasing_line_color='green'
     )])
     
-    # Calculate price range for better y-axis scaling
+    # Calculate price range for y-axis
     price_min = float(data['Low'].min())
     price_max = float(data['High'].max())
-    price_range = price_max - price_min
-    padding = price_range * 0.05
+    padding = (price_max - price_min) * 0.05
     
-    # Determine tick format based on price range
-    tick_format = '.4f'  # Use 4 decimal places for all cases
-    
-    # Update layout with improved formatting
     fig.update_layout(
         title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
         yaxis=dict(
             title="Price",
+            autorange=False,
             range=[price_min - padding, price_max + padding],
-            tickformat=tick_format,
+            tickformat='.4f',
             gridcolor='lightgrey',
             showgrid=True
         ),
         xaxis=dict(
             title="Date",
             type='date',
-            tickformat='%Y-%m-%d %H:%M',
+            tickformat='%Y-%m-%d\n%H:%M',  # Add newline for better readability
             tickmode='auto',
             nticks=10,
-            tickangle=45,
+            tickangle=0,  # Changed to 0 since we're using newline
             gridcolor='lightgrey',
             showgrid=True
         ),
@@ -264,7 +253,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
     )
     
     # Add trigger level if specified
-    if trigger_level is not None and trigger_level != "":
+    if trigger_level:
         try:
             trigger_value = float(trigger_level)
             fig.add_hline(
@@ -277,7 +266,7 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
                 )
             )
         except ValueError:
-            st.warning("Invalid trigger level value")
+            pass
     
     return fig
 
@@ -341,30 +330,16 @@ with col_candlestick:
         pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
         if not pair_hourly_data.empty:
-            # Convert string trigger level to float if provided
-            trigger_level_float = None
-            if st.session_state.trigger_level:
-                try:
-                    trigger_level_float = float(st.session_state.trigger_level)
-                except ValueError:
-                    st.warning("Invalid trigger level. Please enter a valid number.")
-            
-            # Create and display the candlestick chart
             fig_candlestick = create_candlestick_chart(
                 pair_hourly_data, 
                 st.session_state.selected_pair, 
-                trigger_level_float
+                st.session_state.trigger_level
             )
             
             if fig_candlestick:
                 st.plotly_chart(fig_candlestick, use_container_width=True)
-            else:
-                st.warning("Unable to create candlestick chart with the available data")
         else:
-            st.warning(f"No valid data available for {st.session_state.selected_pair}")
-    else:
-        st.write("Select an FX pair to view the candlestick chart.")
-
+            st.write("Select an FX pair to view the candlestick chart.")
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
     st.write("Daily Raw data:")
