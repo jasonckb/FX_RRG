@@ -205,70 +205,21 @@ def get_hourly_data(ticker):
     
     return data
 
-def create_candlestick_chart(data, ticker, trigger_level=None):
-    if data.empty:
-        return None
-    
-    # Create the candlestick chart
-    fig = go.Figure(data=[go.Candlestick(
-        x=data.index,
-        open=data['Open'],
-        high=data['High'],
-        low=data['Low'],
-        close=data['Close'],
-        increasing_line_color='red',
-        decreasing_line_color='green'
-    )])
-    
-    # Calculate price range for y-axis
-    price_min = float(data['Low'].min())
-    price_max = float(data['High'].max())
-    padding = (price_max - price_min) * 0.05
-    
-    fig.update_layout(
-        title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
-        yaxis=dict(
-            title="Price",
-            autorange=False,
-            range=[price_min - padding, price_max + padding],
-            tickformat='.4f',
-            gridcolor='lightgrey',
-            showgrid=True
-        ),
-        xaxis=dict(
-            title="Date",
-            type='date',
-            tickformat='%Y-%m-%d\n%H:%M',  # Add newline for better readability
-            tickmode='auto',
-            nticks=10,
-            tickangle=0,  # Changed to 0 since we're using newline
-            gridcolor='lightgrey',
-            showgrid=True
-        ),
-        height=600,
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-        xaxis_rangeslider_visible=False,
-        margin=dict(t=30, l=60, r=60, b=60)
-    )
-    
-    # Add trigger level if specified
-    if trigger_level:
-        try:
-            trigger_value = float(trigger_level)
-            fig.add_hline(
-                y=trigger_value,
-                line=dict(color="blue", width=1, dash="dash"),
-                annotation_text=f"Trigger: {trigger_value:.4f}",
-                annotation=dict(
-                    font_size=12,
-                    font_color="blue"
-                )
+with col_candlestick:
+    if 'selected_pair' in st.session_state:
+        pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
+        
+        if not pair_hourly_data.empty:
+            fig_candlestick = create_candlestick_chart(
+                pair_hourly_data, 
+                st.session_state.selected_pair, 
+                st.session_state.trigger_level
             )
-        except ValueError:
-            pass
-    
-    return fig
+            
+            if fig_candlestick:
+                st.plotly_chart(fig_candlestick, use_container_width=True)
+        else:
+            st.write("Select an FX pair to view the candlestick chart.")
 
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
@@ -330,6 +281,13 @@ with col_candlestick:
         pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
         if not pair_hourly_data.empty:
+            trigger_level_float = None
+            if st.session_state.trigger_level:
+                try:
+                    trigger_level_float = float(st.session_state.trigger_level)
+                except ValueError:
+                    st.warning("Invalid trigger level. Please enter a valid number.")
+            
             fig_candlestick = create_candlestick_chart(
                 pair_hourly_data, 
                 st.session_state.selected_pair, 
@@ -339,7 +297,9 @@ with col_candlestick:
             if fig_candlestick:
                 st.plotly_chart(fig_candlestick, use_container_width=True)
         else:
-            st.write("Select an FX pair to view the candlestick chart.")
+            st.warning(f"No valid data available for {st.session_state.selected_pair}")
+    else:
+        st.write("Select an FX pair to view the candlestick chart.")
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
     st.write("Daily Raw data:")
