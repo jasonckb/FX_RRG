@@ -365,16 +365,11 @@ with col_candlestick:
                 data.index = pd.to_datetime(data.index)
                 data = data.sort_index()
                 
-                # Create continuous date range
+                # Create continuous date range and reindex
                 date_range = pd.date_range(start=data.index.min(), 
                                          end=data.index.max(), 
                                          freq='1H')
-                
-                # Reindex data to include all hours
-                reindexed_data = data.reindex(date_range)
-                
-                # Keep only rows with actual data
-                data = reindexed_data.dropna()
+                data = data.reindex(date_range).dropna()
                 
                 # Calculate price range for scaling
                 price_min = min(data['Low'].min(), data['Close'].min())
@@ -392,7 +387,7 @@ with col_candlestick:
                     decreasing_line_color='green'
                 )])
                 
-                # Update layout with category axis
+                # Update layout with simplified axis
                 fig.update_layout(
                     title=f"{st.session_state.selected_pair} - Hourly Candlestick Chart",
                     yaxis=dict(
@@ -404,11 +399,11 @@ with col_candlestick:
                     ),
                     xaxis=dict(
                         title="Date",
-                        showgrid=True,
-                        gridwidth=1,
-                        gridcolor='LightGrey',
+                        type='date',
+                        showgrid=False,  # Remove vertical grid lines
                         rangeslider=dict(visible=False),
-                        type='category',  # Use category type to avoid gaps
+                        tickformat='%Y-%m-%d',  # Show only date
+                        dtick='D1',  # Show one tick per day
                         tickangle=45,
                     ),
                     height=700,
@@ -432,19 +427,11 @@ with col_candlestick:
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Debug info
-                with st.expander("Show data info"):
-                    st.write(f"Trading points: {len(data)}")
-                    st.write(f"First data point: {data.index.min()}")
-                    st.write(f"Last data point: {data.index.max()}")
-                    st.write("Sample of data points:")
-                    st.write(data.head())
             else:
                 st.warning(f"No data available for {st.session_state.selected_pair}")
         
         except Exception as e:
             st.error(f"Error: {str(e)}")
-            st.write("Error details:", str(e))
     else:
         st.write("Select an FX pair to view the candlestick chart.")
        
