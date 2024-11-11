@@ -229,7 +229,7 @@ if st.button("Test Data Download"):
         st.write("First few rows of data:")
         st.write(test_data.head())
 
- Define the line chart function
+#Define the line chart function
 def create_line_chart(data, ticker, trigger_level=None):
     fig = go.Figure()
     
