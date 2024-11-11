@@ -166,101 +166,56 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
 
     return fig
 
-@st.cache_data(ttl=3600)  # Cache for 1 hour
+@st.cache_data
 def get_hourly_data(ticker):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=20)
     
-    # Map for inverse pairs
-    inverse_pairs = {
+    # Map the original ticker to its USD-based version for CAD, JPY, CNY, CHF
+    usd_based_tickers = {
         "CADUSD=X": "USDCAD=X",
         "JPYUSD=X": "USDJPY=X",
         "CNYUSD=X": "USDCNY=X",
         "CHFUSD=X": "USDCHF=X"
     }
     
-    # Use the correct ticker format
-    download_ticker = inverse_pairs.get(ticker, ticker)
+    # Use the USD-based ticker if it's one of the special cases, otherwise use the original ticker
+    download_ticker = usd_based_tickers.get(ticker, ticker)
     
-    try:
-        # Download data
-        data = yf.download(download_ticker, 
-                          start=start_date, 
-                          end=end_date, 
-                          interval="1h",
-                          progress=False)
-        
-        if data.empty:
-            st.warning(f"No data available for {download_ticker}")
-            return pd.DataFrame()
-
-        # Basic data cleaning
-        data = data.dropna()
-        
-        # Convert index to datetime if needed
-        data.index = pd.to_datetime(data.index)
-        
-        # Remove weekends
-        data = data[data.index.dayofweek < 5]
-        
-        if data.empty:
-            st.warning(f"No valid data available for {download_ticker} after filtering")
-            return pd.DataFrame()
-            
-        # Handle inverse pairs
-        if ticker in inverse_pairs:
-            for col in ['Open', 'High', 'Low', 'Close']:
-                data[col] = 1 / data[col]
-        
-        # Ensure all required columns exist and are numeric
-        required_columns = ['Open', 'High', 'Low', 'Close']
-        for col in required_columns:
-            if col not in data.columns:
-                st.error(f"Missing required column: {col}")
-                return pd.DataFrame()
-            data[col] = pd.to_numeric(data[col], errors='coerce')
-        
-        # Remove any remaining NaN values after conversion
-        data = data.dropna(subset=required_columns)
-        
-        if len(data) > 0:
-            print(f"Successfully loaded {len(data)} data points for {ticker}")
-            print(f"Date range: {data.index.min()} to {data.index.max()}")
-            print(f"Price range: {data['Low'].min():.4f} to {data['High'].max():.4f}")
-            return data
-        else:
-            st.warning(f"No valid data points found for {download_ticker}")
-            return pd.DataFrame()
-            
-    except Exception as e:
-        st.error(f"Error fetching data for {download_ticker}: {str(e)}")
+    data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
+    
+    if data.empty:
+        st.warning(f"No data available for {download_ticker}")
         return pd.DataFrame()
+
+    if not isinstance(data.index, pd.DatetimeIndex):
+        data.index = pd.to_datetime(data.index)
+    
+    data = data.dropna()
+    data = data[data.index.dayofweek < 5]
+    
+    if data.empty:
+        st.warning(f"No valid data available for {download_ticker} after removing weekends and NaN values")
+        return pd.DataFrame()
+    
+    # If it's an inverse pair, take the reciprocal of the prices
+    if ticker in usd_based_tickers:
+        for col in ['Open', 'High', 'Low', 'Close']:
+            data[col] = 1 / data[col]
+    
+    return data
 
 def create_candlestick_chart(data, ticker, trigger_level=None):
     if data.empty:
         return None
         
-    # Ensure numeric values and remove any NaN
-    numeric_data = data.apply(pd.to_numeric, errors='coerce')
-    numeric_data = numeric_data.dropna(subset=['Open', 'High', 'Low', 'Close'])
-    
-    if numeric_data.empty:
-        st.warning("No valid numeric data available for chart")
-        return None
-    
-    # Calculate price range
-    price_min = numeric_data['Low'].min()
-    price_max = numeric_data['High'].max()
-    price_range = price_max - price_min
-    padding = price_range * 0.05
-    
-    # Create figure
+    # Create the candlestick chart
     fig = go.Figure(data=[go.Candlestick(
-        x=numeric_data.index,
-        open=numeric_data['Open'],
-        high=numeric_data['High'],
-        low=numeric_data['Low'],
-        close=numeric_data['Close'],
+        x=data.index,
+        open=data['Open'],
+        high=data['High'],
+        low=data['Low'],
+        close=data['Close'],
         increasing_line_color='red',
         decreasing_line_color='green'
     )])
@@ -271,11 +226,6 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
         yaxis_title="Price",
         height=600,
         xaxis_rangeslider_visible=False,
-        yaxis=dict(
-            range=[price_min - padding, price_max + padding],
-            autorange=False,
-            tickformat='.4f' if price_max < 1 else '.2f'
-        ),
         xaxis=dict(
             type='date',
             tickformat='%Y-%m-%d %H:%M',
@@ -358,14 +308,9 @@ with col_hourly_rrg:
 
 with col_candlestick:
     if 'selected_pair' in st.session_state:
-        st.write(f"Loading data for {st.session_state.selected_pair}...")
-        
         pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
         if not pair_hourly_data.empty:
-            # Add debug information
-            st.write(f"Data loaded successfully: {len(pair_hourly_data)} data points")
-            
             trigger_level_float = None
             if st.session_state.trigger_level:
                 try:
