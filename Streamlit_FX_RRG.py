@@ -209,6 +209,13 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
     if data.empty:
         return None
         
+    # Convert the index to datetime if it's not already
+    if not isinstance(data.index, pd.DatetimeIndex):
+        data.index = pd.to_datetime(data.index)
+    
+    # Sort data by index to ensure proper plotting
+    data = data.sort_index()
+    
     # Create the candlestick chart
     fig = go.Figure(data=[go.Candlestick(
         x=data.index,
@@ -220,19 +227,36 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
         decreasing_line_color='green'
     )])
     
-    # Update layout
+    # Calculate price range for better y-axis scaling
+    price_min = data['Low'].min()
+    price_max = data['High'].max()
+    price_range = price_max - price_min
+    padding = price_range * 0.05
+    
+    # Update layout with improved formatting
     fig.update_layout(
         title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
-        yaxis_title="Price",
-        height=600,
-        xaxis_rangeslider_visible=False,
+        yaxis=dict(
+            title="Price",
+            range=[price_min - padding, price_max + padding],
+            tickformat='.4f' if price_max < 1 else '.4f',
+            gridcolor='lightgrey',
+            showgrid=True
+        ),
         xaxis=dict(
+            title="Date",
             type='date',
             tickformat='%Y-%m-%d %H:%M',
             tickmode='auto',
             nticks=10,
-            tickangle=45
+            tickangle=45,
+            gridcolor='lightgrey',
+            showgrid=True
         ),
+        height=600,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        xaxis_rangeslider_visible=False,
         margin=dict(t=30, l=60, r=60, b=60)
     )
     
@@ -242,15 +266,18 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
             trigger_value = float(trigger_level)
             fig.add_hline(
                 y=trigger_value,
-                line_dash="dash",
-                line_color="blue",
+                line=dict(color="blue", width=1, dash="dash"),
                 annotation_text=f"Trigger: {trigger_value:.4f}",
-                annotation_position="right"
+                annotation=dict(
+                    font_size=12,
+                    font_color="blue"
+                )
             )
         except ValueError:
             st.warning("Invalid trigger level value")
     
     return fig
+
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
 
@@ -311,6 +338,7 @@ with col_candlestick:
         pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
         if not pair_hourly_data.empty:
+            # Convert string trigger level to float if provided
             trigger_level_float = None
             if st.session_state.trigger_level:
                 try:
@@ -318,6 +346,7 @@ with col_candlestick:
                 except ValueError:
                     st.warning("Invalid trigger level. Please enter a valid number.")
             
+            # Create and display the candlestick chart
             fig_candlestick = create_candlestick_chart(
                 pair_hourly_data, 
                 st.session_state.selected_pair, 
@@ -328,6 +357,12 @@ with col_candlestick:
                 st.plotly_chart(fig_candlestick, use_container_width=True)
             else:
                 st.warning("Unable to create candlestick chart with the available data")
+                
+            # Optional: Display data summary
+            if st.checkbox("Show data summary"):
+                st.write("Data range:", pair_hourly_data.index.min(), "to", pair_hourly_data.index.max())
+                st.write("Number of data points:", len(pair_hourly_data))
+                st.write("Price range:", f"{pair_hourly_data['Low'].min():.4f} to {pair_hourly_data['High'].max():.4f}")
         else:
             st.warning(f"No valid data available for {st.session_state.selected_pair}")
     else:
