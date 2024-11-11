@@ -364,20 +364,12 @@ with col_candlestick:
                 # Convert index to datetime if not already
                 data.index = pd.to_datetime(data.index)
                 
-                # Filter out weekends and keep only trading hours
-                data = data[
-                    (data.index.dayofweek < 5) &  # Monday to Friday
-                    ((data.index.hour >= 1) & (data.index.hour <= 23))  # Trading hours
-                ]
-                
-                # Remove any rows where OHLC values are missing
-                data = data.dropna(subset=['Open', 'High', 'Low', 'Close'])
+                # Filter out weekends and non-trading hours
+                mask = (data.index.dayofweek < 5) & (data['Close'].notna())
+                data = data.loc[mask]
                 
                 # Sort index to ensure proper sequence
                 data = data.sort_index()
-                
-                # Remove duplicate timestamps if any
-                data = data[~data.index.duplicated(keep='first')]
                 
                 # Calculate price range for scaling
                 price_min = min(data['Low'].min(), data['Close'].min())
@@ -392,8 +384,7 @@ with col_candlestick:
                     low=data['Low'],
                     close=data['Close'],
                     increasing_line_color='red',
-                    decreasing_line_color='green',
-                    connectgaps=True  # Connect gaps in data
+                    decreasing_line_color='green'
                 )])
                 
                 # Update layout
@@ -405,6 +396,7 @@ with col_candlestick:
                         showgrid=True,
                         gridwidth=1,
                         gridcolor='LightGrey',
+                        zeroline=True
                     ),
                     xaxis=dict(
                         title="Date",
@@ -413,8 +405,8 @@ with col_candlestick:
                         gridcolor='LightGrey',
                         rangeslider=dict(visible=False),
                         type='date',
-                        nticks=10,
-                        tickformat='%Y-%m-%d %H:%M'
+                        tickformat='%Y-%m-%d\n%H:%M',
+                        dtick=86400000.0,  # Show one tick per day
                     ),
                     height=700,
                     plot_bgcolor='white',
@@ -437,12 +429,10 @@ with col_candlestick:
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Debug info
+                # Show data info
                 with st.expander("Show data info"):
-                    st.write(f"Data points: {len(data)}")
+                    st.write(f"Trading points: {len(data)}")
                     st.write(f"Date range: {data.index.min()} to {data.index.max()}")
-                    st.write("Sample of data:")
-                    st.write(data.head())
             else:
                 st.warning(f"No data available for {st.session_state.selected_pair}")
         
