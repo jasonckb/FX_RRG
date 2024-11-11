@@ -171,7 +171,6 @@ def get_hourly_data(ticker):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=20)
     
-    # Map the original ticker to its USD-based version for CAD, JPY, CNY, CHF
     usd_based_tickers = {
         "CADUSD=X": "USDCAD=X",
         "JPYUSD=X": "USDJPY=X",
@@ -179,26 +178,30 @@ def get_hourly_data(ticker):
         "CHFUSD=X": "USDCHF=X"
     }
     
-    # Use the USD-based ticker if it's one of the special cases, otherwise use the original ticker
+    # Use the USD-based ticker if it's one of the special cases
     download_ticker = usd_based_tickers.get(ticker, ticker)
     
+    # Download data with all required columns
     data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
+    
+    # Debug print
+    print(f"Downloaded data columns: {data.columns}")
+    print(f"First few rows of data:")
+    print(data.head())
     
     if data.empty:
         st.warning(f"No data available for {download_ticker}")
         return pd.DataFrame()
 
+    # Handle datetime index
     if not isinstance(data.index, pd.DatetimeIndex):
         data.index = pd.to_datetime(data.index)
     
+    # Remove weekends and NaN values
     data = data.dropna()
     data = data[data.index.dayofweek < 5]
     
-    if data.empty:
-        st.warning(f"No valid data available for {download_ticker} after removing weekends and NaN values")
-        return pd.DataFrame()
-    
-    # If it's an inverse pair, take the reciprocal of the prices
+    # Handle inverse pairs
     if ticker in usd_based_tickers:
         for col in ['Open', 'High', 'Low', 'Close']:
             data[col] = 1 / data[col]
