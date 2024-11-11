@@ -232,8 +232,6 @@ if st.button("Test Data Download"):
 #Define the line chart function
 def create_line_chart(data, ticker, trigger_level=None):
     fig = go.Figure()
-    
-    # Plot the line
     fig.add_trace(go.Scatter(
         x=data.index,
         y=data.values,
@@ -249,7 +247,6 @@ def create_line_chart(data, ticker, trigger_level=None):
 # Main app section:
 with col_candlestick:
     if 'selected_pair' in st.session_state:
-        # Get data
         data = yf.download(
             st.session_state.selected_pair,
             start=datetime.now() - timedelta(days=20),
@@ -258,18 +255,15 @@ with col_candlestick:
         )
         
         if not data.empty:
-            # Debug print actual values
             st.write("First few values:", data['Close'].head())
-            st.write("Last few values:", data['Close'].tail())
             
-            # Create chart with just Close prices
             fig = create_line_chart(
                 data['Close'],
                 st.session_state.selected_pair,
                 st.session_state.trigger_level
             )
             
-            st.plotly_chart(fig)
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.write("No data available")
 
