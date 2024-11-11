@@ -166,7 +166,7 @@ def create_rrg_chart(data, benchmark, fx_pairs, fx_names, timeframe, tail_length
 
     return fig
 
-@st.cache_data
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_hourly_data(ticker):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=20)
@@ -183,18 +183,24 @@ def get_hourly_data(ticker):
     download_ticker = inverse_pairs.get(ticker, ticker)
     
     try:
-        data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
+        # Download data
+        data = yf.download(download_ticker, 
+                          start=start_date, 
+                          end=end_date, 
+                          interval="1h",
+                          progress=False)
         
         if data.empty:
             st.warning(f"No data available for {download_ticker}")
             return pd.DataFrame()
 
-        # Ensure index is datetime
-        if not isinstance(data.index, pd.DatetimeIndex):
-            data.index = pd.to_datetime(data.index)
-        
-        # Remove weekends and NaN values
+        # Basic data cleaning
         data = data.dropna()
+        
+        # Convert index to datetime if needed
+        data.index = pd.to_datetime(data.index)
+        
+        # Remove weekends
         data = data[data.index.dayofweek < 5]
         
         if data.empty:
@@ -205,14 +211,27 @@ def get_hourly_data(ticker):
         if ticker in inverse_pairs:
             for col in ['Open', 'High', 'Low', 'Close']:
                 data[col] = 1 / data[col]
-                
-        # Print data range for debugging
-        print(f"Data range for {ticker}:")
-        print(f"High: {data['High'].max():.4f}")
-        print(f"Low: {data['Low'].min():.4f}")
-            
-        return data
         
+        # Ensure all required columns exist and are numeric
+        required_columns = ['Open', 'High', 'Low', 'Close']
+        for col in required_columns:
+            if col not in data.columns:
+                st.error(f"Missing required column: {col}")
+                return pd.DataFrame()
+            data[col] = pd.to_numeric(data[col], errors='coerce')
+        
+        # Remove any remaining NaN values after conversion
+        data = data.dropna(subset=required_columns)
+        
+        if len(data) > 0:
+            print(f"Successfully loaded {len(data)} data points for {ticker}")
+            print(f"Date range: {data.index.min()} to {data.index.max()}")
+            print(f"Price range: {data['Low'].min():.4f} to {data['High'].max():.4f}")
+            return data
+        else:
+            st.warning(f"No valid data points found for {download_ticker}")
+            return pd.DataFrame()
+            
     except Exception as e:
         st.error(f"Error fetching data for {download_ticker}: {str(e)}")
         return pd.DataFrame()
@@ -220,38 +239,42 @@ def get_hourly_data(ticker):
 def create_candlestick_chart(data, ticker, trigger_level=None):
     if data.empty:
         return None
+        
+    # Ensure numeric values and remove any NaN
+    numeric_data = data.apply(pd.to_numeric, errors='coerce')
+    numeric_data = numeric_data.dropna(subset=['Open', 'High', 'Low', 'Close'])
     
-    # Calculate price range for better scaling
-    price_min = data['Low'].min()
-    price_max = data['High'].max()
+    if numeric_data.empty:
+        st.warning("No valid numeric data available for chart")
+        return None
+    
+    # Calculate price range
+    price_min = numeric_data['Low'].min()
+    price_max = numeric_data['High'].max()
     price_range = price_max - price_min
-    
-    # Add padding to the price range
     padding = price_range * 0.05
-    y_min = price_min - padding
-    y_max = price_max + padding
     
-    # Create the candlestick chart
+    # Create figure
     fig = go.Figure(data=[go.Candlestick(
-        x=data.index,
-        open=data['Open'],
-        high=data['High'],
-        low=data['Low'],
-        close=data['Close'],
-        increasing_line_color='red',  # Red for increasing candles
-        decreasing_line_color='green'  # Green for decreasing candles
+        x=numeric_data.index,
+        open=numeric_data['Open'],
+        high=numeric_data['High'],
+        low=numeric_data['Low'],
+        close=numeric_data['Close'],
+        increasing_line_color='red',
+        decreasing_line_color='green'
     )])
     
-    # Update layout with fixed y-axis range
+    # Update layout
     fig.update_layout(
         title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
         yaxis_title="Price",
         height=600,
         xaxis_rangeslider_visible=False,
         yaxis=dict(
-            range=[y_min, y_max],
+            range=[price_min - padding, price_max + padding],
             autorange=False,
-            tickformat='.4f' if y_max < 1 else '.2f'  # More decimals for small numbers
+            tickformat='.4f' if price_max < 1 else '.2f'
         ),
         xaxis=dict(
             type='date',
@@ -263,18 +286,17 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
         margin=dict(t=30, l=60, r=60, b=60)
     )
     
-    # Add trigger level line if specified
+    # Add trigger level if specified
     if trigger_level is not None and trigger_level != "":
         try:
             trigger_value = float(trigger_level)
-            if y_min <= trigger_value <= y_max:
-                fig.add_hline(
-                    y=trigger_value,
-                    line_dash="dash",
-                    line_color="blue",
-                    annotation_text=f"Trigger: {trigger_value:.4f}",
-                    annotation_position="right"
-                )
+            fig.add_hline(
+                y=trigger_value,
+                line_dash="dash",
+                line_color="blue",
+                annotation_text=f"Trigger: {trigger_value:.4f}",
+                annotation_position="right"
+            )
         except ValueError:
             st.warning("Invalid trigger level value")
     
@@ -336,12 +358,13 @@ with col_hourly_rrg:
 
 with col_candlestick:
     if 'selected_pair' in st.session_state:
+        st.write(f"Loading data for {st.session_state.selected_pair}...")
+        
         pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
         if not pair_hourly_data.empty:
-            # Debug output
-            st.write("Data loaded successfully")
-            st.write(f"Number of data points: {len(pair_hourly_data)}")
+            # Add debug information
+            st.write(f"Data loaded successfully: {len(pair_hourly_data)} data points")
             
             trigger_level_float = None
             if st.session_state.trigger_level:
