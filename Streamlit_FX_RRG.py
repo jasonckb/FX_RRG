@@ -230,59 +230,64 @@ if st.button("Test Data Download"):
         st.write(test_data.head())
 
 def create_line_chart(data, ticker, trigger_level=None):
-    # Sort index to ensure proper time sequence
-    data = data.sort_index()
+    # Create the line chart with minimum margin
+    fig = go.Figure()
     
-    # Calculate price range for y-axis scaling
-    price_min = data.min()
-    price_max = data.max()
-    price_range = price_max - price_min
-    padding = price_range * 0.05
-    y_min = price_min - padding
-    y_max = price_max + padding
-    
-    # Create the line chart
-    fig = go.Figure(data=[go.Scatter(
+    # Add price line
+    fig.add_trace(go.Scatter(
         x=data.index,
         y=data,
         mode='lines',
         name='Price',
-        line=dict(color='blue', width=1.5)
-    )])
+        line=dict(color='black', width=1)
+    ))
     
-    # Update layout with fixed axis properties
+    # Calculate price range
+    price_min = data.min()
+    price_max = data.max()
+    padding = (price_max - price_min) * 0.1
+    y_min = price_min - padding
+    y_max = price_max + padding
+    
+    # Update layout
     fig.update_layout(
         title=f"{ticker} - Hourly Price Chart (Last 20 Days)",
-        xaxis_title="Date",
-        yaxis_title="Price",
         height=700,
-        yaxis=dict(
-            range=[y_min, y_max],
-            tickformat='.4f',  # 4 decimal places for FX
-            gridcolor='LightGrey',
-            showgrid=True,
-            zeroline=True,
-            showline=True,
-            showticklabels=True,
-            tickmode='auto',
-            nticks=10
-        ),
-        xaxis=dict(
-            type='date',
-            tickformat='%m-%d %H:%M',
-            tickmode='auto',
-            nticks=12,
-            tickangle=45,
-            gridcolor='LightGrey',
-            showgrid=True,
-            zeroline=True,
-            showline=True,
-            showticklabels=True
-        ),
-        showlegend=False,
         plot_bgcolor='white',
-        paper_bgcolor='white',
-        margin=dict(l=80, r=50, t=50, b=80)  # Increased margins for labels
+        showlegend=False,
+        margin=dict(l=50, r=50, t=50, b=50),  # Minimal margins
+        
+        # Y-axis settings
+        yaxis=dict(
+            title="Price",
+            range=[y_min, y_max],
+            tickformat='.4f',
+            showgrid=True,
+            gridcolor='lightgrey',
+            showline=True,
+            linecolor='black',
+            ticks='outside',
+            ticklen=8,
+            tickwidth=1,
+            tickcolor='black',
+            mirror=True
+        ),
+        
+        # X-axis settings
+        xaxis=dict(
+            title="Date",
+            showgrid=True,
+            gridcolor='lightgrey',
+            tickangle=45,
+            showline=True,
+            linecolor='black',
+            ticks='outside',
+            ticklen=8,
+            tickwidth=1,
+            tickcolor='black',
+            mirror=True,
+            nticks=10
+        )
     )
     
     # Add trigger level if specified
@@ -293,7 +298,7 @@ def create_line_chart(data, ticker, trigger_level=None):
             y0=trigger_level,
             x1=data.index[-1],
             y1=trigger_level,
-            line=dict(color="blue", width=1.5, dash="dash"),
+            line=dict(color="blue", width=1, dash="dash"),
         )
         fig.add_annotation(
             x=data.index[-1],
@@ -304,22 +309,6 @@ def create_line_chart(data, ticker, trigger_level=None):
             xshift=10,
             font=dict(color="blue"),
         )
-    
-    # Update axes lines
-    fig.update_xaxes(
-        mirror=True,
-        ticks='outside',
-        showline=True,
-        linecolor='black',
-        linewidth=1
-    )
-    fig.update_yaxes(
-        mirror=True,
-        ticks='outside',
-        showline=True,
-        linecolor='black',
-        linewidth=1
-    )
     
     return fig
 
@@ -408,8 +397,10 @@ with col_candlestick:
                 if st.session_state.selected_pair in usd_based_tickers:
                     data['Close'] = 1 / data['Close']
                 
-                st.write(f"Data points: {len(data)}")
-                st.write(f"Date range: {data.index.min()} to {data.index.max()}")
+                # Add debug info but make it collapsible
+                with st.expander("Debug Info"):
+                    st.write(f"Data points: {len(data)}")
+                    st.write(f"Date range: {data.index.min()} to {data.index.max()}")
                 
                 trigger_level_float = None
                 if st.session_state.trigger_level:
