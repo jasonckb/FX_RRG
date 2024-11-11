@@ -206,64 +206,55 @@ def get_hourly_data(ticker):
     return data
 
 def create_candlestick_chart(data, ticker, trigger_level=None):
-    # Create initial figure with candlestick data
+    # Debug print
+    print("Data received for candlestick chart:")
+    print(f"Shape: {data.shape}")
+    print(f"Columns: {data.columns}")
+    print(f"First few rows:")
+    print(data.head())
+    
+    # Create candlestick chart
     fig = go.Figure(data=[go.Candlestick(
         x=data.index,
         open=data['Open'],
         high=data['High'],
         low=data['Low'],
-        close=data['Close'],
-        increasing=dict(line=dict(color='red'), fillcolor='red'),  # Red for increase
-        decreasing=dict(line=dict(color='green'), fillcolor='green')  # Green for decrease
+        close=data['Close']
     )])
-    
-    # Calculate price range for better y-axis scaling
-    price_min = data['Low'].min()
-    price_max = data['High'].max()
-    price_range = price_max - price_min
-    padding = price_range * 0.05
-    y_min = price_min - padding
-    y_max = price_max + padding
-    
-    # Update the layout
+
+    # Update layout
     fig.update_layout(
         title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
-        yaxis=dict(
-            title="Price",
-            range=[y_min, y_max],
-        ),
+        xaxis_title="Date",
+        yaxis_title="Price",
+        height=700,
+        xaxis_rangeslider_visible=False,
         xaxis=dict(
-            title="Date",
-            type='date',
-            rangeslider=dict(visible=False)  # Remove range slider
-        ),
-        height=600,  # Match height with other charts
-        template='plotly_white',  # Use white template for better visibility
+            tickformat='%Y-%m-%d %H:%M',
+            tickmode='auto',
+            nticks=10,
+        )
     )
     
     # Add trigger level if specified
-    if trigger_level is not None and trigger_level != "":
-        try:
-            trigger_value = float(trigger_level)
-            fig.add_shape(
-                type="line",
-                x0=data.index[0],
-                y0=trigger_value,
-                x1=data.index[-1],
-                y1=trigger_value,
-                line=dict(color="blue", width=1.5, dash="dash"),
-            )
-            fig.add_annotation(
-                x=data.index[-1],
-                y=trigger_value,
-                text=f"Trigger: {trigger_value:.4f}",
-                showarrow=False,
-                xshift=10,
-                yshift=10,
-                font=dict(color="blue")
-            )
-        except ValueError:
-            pass
+    if trigger_level is not None:
+        fig.add_shape(
+            type="line",
+            x0=data.index[0],
+            y0=trigger_level,
+            x1=data.index[-1],
+            y1=trigger_level,
+            line=dict(color="blue", width=2, dash="dash"),
+        )
+        fig.add_annotation(
+            x=data.index[-1],
+            y=trigger_level,
+            text=f"Trigger: {trigger_level}",
+            showarrow=False,
+            yshift=10,
+            xshift=10,
+            font=dict(color="blue"),
+        )
     
     return fig
 
@@ -325,10 +316,15 @@ with col_hourly_rrg:
 
 with col_candlestick:
     if 'selected_pair' in st.session_state:
+        # Debug print
+        print(f"Selected pair: {st.session_state.selected_pair}")
+        
         pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
         if not pair_hourly_data.empty:
-            # Convert trigger_level to float if it's not empty
+            # Debug print
+            print("Data loaded successfully")
+            
             trigger_level_float = None
             if st.session_state.trigger_level:
                 try:
@@ -336,7 +332,6 @@ with col_candlestick:
                 except ValueError:
                     st.warning("Invalid trigger level. Please enter a valid number.")
             
-            # Create and display the candlestick chart
             fig_candlestick = create_candlestick_chart(
                 pair_hourly_data, 
                 st.session_state.selected_pair, 
@@ -345,8 +340,12 @@ with col_candlestick:
             
             if fig_candlestick:
                 st.plotly_chart(fig_candlestick, use_container_width=True)
+            else:
+                st.warning("Unable to create candlestick chart with the available data")
         else:
             st.warning(f"No valid data available for {st.session_state.selected_pair}")
+    else:
+        st.write("Select an FX pair to view the candlestick chart.")
 
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
