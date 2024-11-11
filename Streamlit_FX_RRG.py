@@ -171,7 +171,7 @@ def get_hourly_data(ticker):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=20)
     
-    # Map the original ticker to its USD-based version for CAD, JPY, CNY, CHF
+    # Map the original ticker to its USD-based version
     usd_based_tickers = {
         "CADUSD=X": "USDCAD=X",
         "JPYUSD=X": "USDJPY=X",
@@ -179,77 +179,82 @@ def get_hourly_data(ticker):
         "CHFUSD=X": "USDCHF=X"
     }
     
-    # Use the USD-based ticker if it's one of the special cases, otherwise use the original ticker
+    # Use the USD-based ticker if it's one of the special cases
     download_ticker = usd_based_tickers.get(ticker, ticker)
     
-    data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
-    
-    if data.empty:
-        st.warning(f"No data available for {download_ticker}")
-        return pd.DataFrame()
+    try:
+        data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
+        
+        if data.empty:
+            st.warning(f"No data available for {download_ticker}")
+            return pd.DataFrame()
 
-    if not isinstance(data.index, pd.DatetimeIndex):
-        data.index = pd.to_datetime(data.index)
-    
-    data = data.dropna()
-    data = data[data.index.dayofweek < 5]
-    
-    if data.empty:
-        st.warning(f"No valid data available for {download_ticker} after removing weekends and NaN values")
+        # Ensure index is datetime
+        if not isinstance(data.index, pd.DatetimeIndex):
+            data.index = pd.to_datetime(data.index)
+        
+        # Remove weekends and handle NaN values
+        data = data.dropna()
+        data = data[data.index.dayofweek < 5]
+        
+        if data.empty:
+            st.warning(f"No valid data available for {download_ticker} after filtering")
+            return pd.DataFrame()
+            
+        # Convert special pairs if needed
+        if ticker in usd_based_tickers:
+            # For inverse pairs, take the reciprocal of the price
+            for col in ['Open', 'High', 'Low', 'Close']:
+                data[col] = 1 / data[col]
+            
+        return data
+        
+    except Exception as e:
+        st.error(f"Error fetching data for {download_ticker}: {str(e)}")
         return pd.DataFrame()
-    
-    data = data.reset_index()
-    data['continuous_datetime'] = pd.date_range(start=data['Datetime'].min(), periods=len(data), freq='H')
-    data.set_index('continuous_datetime', inplace=True)
-    
-    return data
 
 def create_candlestick_chart(data, ticker, trigger_level=None):
-    usd_based_tickers = {
-        "CADUSD=X": "USDCAD=X",
-        "JPYUSD=X": "USDJPY=X",
-        "CNYUSD=X": "USDCNY=X",
-        "CHFUSD=X": "USDCHF=X"
-    }
-    display_ticker = usd_based_tickers.get(ticker, ticker)
+    if data.empty:
+        return None
+        
+    # Create the candlestick chart
+    fig = go.Figure(data=[go.Candlestick(
+        x=data.index,
+        open=data['Open'],
+        high=data['High'],
+        low=data['Low'],
+        close=data['Close']
+    )])
     
-    fig = go.Figure(data=[go.Candlestick(x=data.index,
-                    open=data['Open'],
-                    high=data['High'],
-                    low=data['Low'],
-                    close=data['Close'])])
-    
+    # Update layout with better formatting
     fig.update_layout(
-        title=f"{display_ticker} - Hourly Candlestick Chart (Last 20 Days)",
-        xaxis_title="Date",
+        title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
         yaxis_title="Price",
-        height=700,
+        height=600,  # Match the height of RRG chart
         xaxis_rangeslider_visible=False,
         xaxis=dict(
+            type='date',
             tickformat='%Y-%m-%d %H:%M',
             tickmode='auto',
             nticks=10,
-        )
+            tickangle=45,
+        ),
+        margin=dict(t=30, l=60, r=60, b=60)
     )
     
-    if trigger_level is not None:
-        fig.add_shape(
-            type="line",
-            x0=data.index[0],
-            y0=trigger_level,
-            x1=data.index[-1],
-            y1=trigger_level,
-            line=dict(color="blue", width=2, dash="dash"),
-        )
-        fig.add_annotation(
-            x=data.index[-1],
-            y=trigger_level,
-            text=f"Trigger: {trigger_level}",
-            showarrow=False,
-            yshift=10,
-            xshift=10,
-            font=dict(color="blue"),
-        )
+    # Add trigger level line if specified
+    if trigger_level is not None and trigger_level != "":
+        try:
+            trigger_value = float(trigger_level)
+            fig.add_hline(
+                y=trigger_value,
+                line_dash="dash",
+                line_color="blue",
+                annotation_text=f"Trigger: {trigger_value}",
+                annotation_position="right"
+            )
+        except ValueError:
+            st.warning("Invalid trigger level value")
     
     return fig
 
@@ -313,7 +318,6 @@ with col_candlestick:
         pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
         if not pair_hourly_data.empty:
-            # Convert trigger_level to float if it's not empty
             trigger_level_float = None
             if st.session_state.trigger_level:
                 try:
@@ -321,14 +325,19 @@ with col_candlestick:
                 except ValueError:
                     st.warning("Invalid trigger level. Please enter a valid number.")
             
-            fig_candlestick = create_candlestick_chart(pair_hourly_data, st.session_state.selected_pair, trigger_level_float)
+            fig_candlestick = create_candlestick_chart(
+                pair_hourly_data, 
+                st.session_state.selected_pair, 
+                trigger_level_float
+            )
             
-            
-            st.plotly_chart(fig_candlestick, use_container_width=True)
+            if fig_candlestick:
+                st.plotly_chart(fig_candlestick, use_container_width=True)
+            else:
+                st.warning("Unable to create candlestick chart with the available data")
         else:
-            st.write(f"No valid data available for {st.session_state.selected_pair}")
+            st.warning(f"No valid data available for {st.session_state.selected_pair}")
     else:
-        st.write("Select an FX pair to view the candlestick chart.")
 
 # Show raw data if checkbox is selected
 if st.checkbox("Show raw data"):
