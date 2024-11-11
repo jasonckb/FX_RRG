@@ -343,15 +343,10 @@ with col_hourly_rrg:
 
 with col_candlestick:
     if 'selected_pair' in st.session_state:
-        # Debug print
-        st.write("Selected pair for chart:", st.session_state.selected_pair)
-        
-        # Get hourly data for the selected pair
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=20)
-        
-        # Get data for selected pair
         try:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=20)
+            
             data = yf.download(
                 st.session_state.selected_pair,
                 start=start_date,
@@ -360,58 +355,72 @@ with col_candlestick:
                 progress=False
             )
             
-            # Debug data
-            st.write("Data shape:", data.shape)
+            st.write(f"Selected pair for chart: {st.session_state.selected_pair}")
+            st.write(f"Data shape: {data.shape}")
             
             if not data.empty:
-                # Create the line chart
-                fig = go.Figure(data=[go.Scatter(
+                # Calculate price range for better y-axis scaling
+                price_min = data['Close'].min()
+                price_max = data['Close'].max()
+                padding = (price_max - price_min) * 0.05
+                
+                fig = go.Figure()
+                
+                # Add price line
+                fig.add_trace(go.Scatter(
                     x=data.index,
                     y=data['Close'],
                     mode='lines',
-                    name='Price',
                     line=dict(color='blue', width=1)
-                )])
+                ))
                 
-                # Update layout
+                # Update layout with fixed y-axis range
                 fig.update_layout(
                     title=f"{st.session_state.selected_pair} - Hourly Price Chart",
-                    xaxis_title="Date",
-                    yaxis_title="Price",
-                    height=700
+                    yaxis=dict(
+                        title="Price",
+                        range=[price_min - padding, price_max + padding],
+                        showgrid=True,
+                        gridwidth=1,
+                        gridcolor='LightGrey',
+                    ),
+                    xaxis=dict(
+                        title="Date",
+                        showgrid=True,
+                        gridwidth=1,
+                        gridcolor='LightGrey',
+                        rangeslider=dict(visible=False)
+                    ),
+                    height=700,
+                    plot_bgcolor='white',
+                    paper_bgcolor='white'
                 )
                 
                 # Add trigger level if specified
                 if st.session_state.trigger_level:
                     try:
                         trigger_value = float(st.session_state.trigger_level)
-                        fig.add_shape(
-                            type="line",
-                            x0=data.index[0],
-                            y0=trigger_value,
-                            x1=data.index[-1],
-                            y1=trigger_value,
-                            line=dict(color="blue", width=2, dash="dash"),
-                        )
-                        fig.add_annotation(
-                            x=data.index[-1],
+                        fig.add_hline(
                             y=trigger_value,
-                            text=f"Trigger: {trigger_value}",
-                            showarrow=False,
-                            yshift=10,
-                            xshift=10,
-                            font=dict(color="blue"),
+                            line_dash="dash",
+                            line_color="blue",
+                            annotation_text=f"Trigger: {trigger_value}",
+                            annotation_position="right"
                         )
                     except ValueError:
                         st.warning("Invalid trigger level value")
                 
                 st.plotly_chart(fig, use_container_width=True)
+                
+                # Debug: show first few rows of data
+                with st.expander("Show data sample"):
+                    st.write("First few rows:")
+                    st.write(data.head())
             else:
                 st.warning(f"No data available for {st.session_state.selected_pair}")
-                
+        
         except Exception as e:
-            st.error(f"Error loading data: {str(e)}")
-            
+            st.error(f"Error: {str(e)}")
     else:
         st.write("Select an FX pair to view the price chart.")
        
