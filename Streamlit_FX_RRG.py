@@ -171,16 +171,16 @@ def get_hourly_data(ticker):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=20)
     
-    # Map the original ticker to its USD-based version
-    usd_based_tickers = {
+    # Map for inverse pairs
+    inverse_pairs = {
         "CADUSD=X": "USDCAD=X",
         "JPYUSD=X": "USDJPY=X",
         "CNYUSD=X": "USDCNY=X",
         "CHFUSD=X": "USDCHF=X"
     }
     
-    # Use the USD-based ticker if it's one of the special cases
-    download_ticker = usd_based_tickers.get(ticker, ticker)
+    # Use the correct ticker format
+    download_ticker = inverse_pairs.get(ticker, ticker)
     
     try:
         data = yf.download(download_ticker, start=start_date, end=end_date, interval="1h")
@@ -193,7 +193,7 @@ def get_hourly_data(ticker):
         if not isinstance(data.index, pd.DatetimeIndex):
             data.index = pd.to_datetime(data.index)
         
-        # Remove weekends and handle NaN values
+        # Remove weekends and NaN values
         data = data.dropna()
         data = data[data.index.dayofweek < 5]
         
@@ -201,11 +201,15 @@ def get_hourly_data(ticker):
             st.warning(f"No valid data available for {download_ticker} after filtering")
             return pd.DataFrame()
             
-        # Convert special pairs if needed
-        if ticker in usd_based_tickers:
-            # For inverse pairs, take the reciprocal of the price
+        # Handle inverse pairs
+        if ticker in inverse_pairs:
             for col in ['Open', 'High', 'Low', 'Close']:
                 data[col] = 1 / data[col]
+                
+        # Print data range for debugging
+        print(f"Data range for {ticker}:")
+        print(f"High: {data['High'].max():.4f}")
+        print(f"Low: {data['Low'].min():.4f}")
             
         return data
         
@@ -216,28 +220,45 @@ def get_hourly_data(ticker):
 def create_candlestick_chart(data, ticker, trigger_level=None):
     if data.empty:
         return None
-        
+    
+    # Calculate price range for better scaling
+    price_min = data['Low'].min()
+    price_max = data['High'].max()
+    price_range = price_max - price_min
+    
+    # Add padding to the price range
+    padding = price_range * 0.05
+    y_min = price_min - padding
+    y_max = price_max + padding
+    
     # Create the candlestick chart
     fig = go.Figure(data=[go.Candlestick(
         x=data.index,
         open=data['Open'],
         high=data['High'],
         low=data['Low'],
-        close=data['Close']
+        close=data['Close'],
+        increasing_line_color='red',  # Red for increasing candles
+        decreasing_line_color='green'  # Green for decreasing candles
     )])
     
-    # Update layout with better formatting
+    # Update layout with fixed y-axis range
     fig.update_layout(
         title=f"{ticker} - Hourly Candlestick Chart (Last 20 Days)",
         yaxis_title="Price",
-        height=600,  # Match the height of RRG chart
+        height=600,
         xaxis_rangeslider_visible=False,
+        yaxis=dict(
+            range=[y_min, y_max],
+            autorange=False,
+            tickformat='.4f' if y_max < 1 else '.2f'  # More decimals for small numbers
+        ),
         xaxis=dict(
             type='date',
             tickformat='%Y-%m-%d %H:%M',
             tickmode='auto',
             nticks=10,
-            tickangle=45,
+            tickangle=45
         ),
         margin=dict(t=30, l=60, r=60, b=60)
     )
@@ -246,18 +267,18 @@ def create_candlestick_chart(data, ticker, trigger_level=None):
     if trigger_level is not None and trigger_level != "":
         try:
             trigger_value = float(trigger_level)
-            fig.add_hline(
-                y=trigger_value,
-                line_dash="dash",
-                line_color="blue",
-                annotation_text=f"Trigger: {trigger_value}",
-                annotation_position="right"
-            )
+            if y_min <= trigger_value <= y_max:
+                fig.add_hline(
+                    y=trigger_value,
+                    line_dash="dash",
+                    line_color="blue",
+                    annotation_text=f"Trigger: {trigger_value:.4f}",
+                    annotation_position="right"
+                )
         except ValueError:
             st.warning("Invalid trigger level value")
     
     return fig
-
 # Main Streamlit app
 st.title("FX Relative Rotation Graph (RRG) Dashboard")
 
@@ -318,6 +339,10 @@ with col_candlestick:
         pair_hourly_data = get_hourly_data(st.session_state.selected_pair)
         
         if not pair_hourly_data.empty:
+            # Debug output
+            st.write("Data loaded successfully")
+            st.write(f"Number of data points: {len(pair_hourly_data)}")
+            
             trigger_level_float = None
             if st.session_state.trigger_level:
                 try:
